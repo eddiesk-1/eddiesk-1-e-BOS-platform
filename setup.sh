@@ -1,0 +1,165 @@
+#!/bin/bash
+# ============================================================================
+# e-BOS platform — setup script for proot-distro Ubuntu inside Termux
+#
+# Run this FROM INSIDE your proot-distro Ubuntu shell (after
+# `proot-distro login ubuntu`), from inside the extracted e-bos-platform/
+# folder:
+#   cd e-bos-platform && bash setup.sh
+#
+# This targets proot-distro Ubuntu specifically, NOT bare Termux — apt,
+# a real `postgres` system user, and a postgresql-<version>-pgvector
+# package all work the way this script uses them below. The Postgres
+# MAJOR VERSION is NOT hardcoded — it's detected after installing the
+# base `postgresql` package (see step 2), because different Ubuntu
+# releases ship different default Postgres versions (this was found by
+# a real user's proot-distro Ubuntu shipping Postgres 18, where an
+# earlier version of this script hardcoded 16 — the exact Ubuntu release
+# this backend was originally developed against — and failed outright on
+# `apt-get install postgresql-16-pgvector` because no such package
+# existed on their system). Every step below asks Postgres itself what
+# version it actually installed, rather than assuming.
+# ============================================================================
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/backend"
+FRONTEND_DIR="$SCRIPT_DIR/frontend"
+DB_NAME="e_bos"
+
+step() { echo ""; echo "==> $1"; }
+fail() { echo ""; echo "!! $1"; echo "!! See SETUP.md's troubleshooting section."; exit 1; }
+
+if [ "$EUID" -ne 0 ]; then
+  fail "Run this as root inside proot-distro Ubuntu (that's the default user proot-distro logs you in as)."
+fi
+
+# --- 1. Base packages (version-agnostic) ----------------------------------
+step "Installing base packages (this can take a few minutes on first run)"
+apt-get update -y || fail "apt-get update failed — check your network connection"
+apt-get install -y curl ca-certificates postgresql postgresql-contrib python3 || fail "apt-get install failed"
+
+if ! command -v node >/dev/null 2>&1; then
+  step "Installing Node.js 20"
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || fail "Node setup script failed"
+  apt-get install -y nodejs || fail "Node install failed"
+fi
+
+# --- 2. Detect the ACTUAL installed Postgres major version -----------------
+step "Detecting installed Postgres version"
+PG_VERSION="$(pg_lsclusters --no-header | awk '{print $1}' | head -1)"
+if [ -z "$PG_VERSION" ]; then
+  fail "Could not detect a Postgres cluster via pg_lsclusters — the postgresql package may not have installed correctly."
+fi
+PG_DATA_DIR="/var/lib/postgresql/${PG_VERSION}/main"
+PG_CONFIG_DIR="/etc/postgresql/${PG_VERSION}/main"
+PG_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
+echo "Detected Postgres ${PG_VERSION} (data dir: $PG_DATA_DIR)"
+
+# --- 3. pgvector, for THIS detected version ---------------------------------
+step "Installing postgresql-${PG_VERSION}-pgvector"
+apt-get install -y "postgresql-${PG_VERSION}-pgvector" \
+  || fail "postgresql-${PG_VERSION}-pgvector isn't available for your Ubuntu release. Run 'apt-cache search pgvector' to see what version IS available — if it doesn't match ${PG_VERSION}, you likely need to build pgvector from source against your installed Postgres version instead. See SETUP.md's pgvector section."
+
+# --- 4. Start Postgres -------------------------------------------------------
+step "Starting Postgres ${PG_VERSION}"
+su postgres -c "${PG_BIN}/pg_ctl -D ${PG_DATA_DIR} -o '-c config_file=${PG_CONFIG_DIR}/postgresql.conf -c hba_file=${PG_CONFIG_DIR}/pg_hba.conf -c ident_file=${PG_CONFIG_DIR}/pg_ident.conf' -l /tmp/pg-setup.log start" 2>/dev/null \
+  || echo "(already running, or check /tmp/pg-setup.log if this is unexpected)"
+sleep 2
+su postgres -c "pg_isready" >/dev/null 2>&1 || fail "Postgres did not come up — check /tmp/pg-setup.log"
+
+# --- 5. Role + database ----------------------------------------------------
+step "Creating the app database and superuser role for migrations"
+DB_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
+su postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='postgres'\"" | grep -q 1 \
+  && su postgres -c "psql -c \"ALTER USER postgres PASSWORD '$DB_PASSWORD';\"" >/dev/null
+su postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='$DB_NAME'\"" | grep -q 1 \
+  || su postgres -c "psql -c \"CREATE DATABASE $DB_NAME OWNER postgres;\"" >/dev/null \
+  || fail "CREATE DATABASE failed"
+
+step "Confirming pgvector loads"
+su postgres -c "psql -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS vector;'" >/dev/null \
+  || fail "pgvector failed to load even though postgresql-${PG_VERSION}-pgvector installed — check /tmp/pg-setup.log"
+
+# --- 6. .env -----------------------------------------------------------------
+step "Setting up backend/.env"
+if [ ! -f "$BACKEND_DIR/.env" ]; then
+  cat > "$BACKEND_DIR/.env" <<EOF
+# Generated by setup.sh. See SETUP.md for what each of these means and
+# which ones you need to fill in yourself (ANTHROPIC_API_KEY especially).
+
+DATABASE_URL=postgres://postgres:${DB_PASSWORD}@localhost:5432/${DB_NAME}
+APP_DATABASE_URL=postgres://app_login:change_me_in_production@localhost:5432/${DB_NAME}
+PUBLIC_DATABASE_URL=postgres://app_public_login:change_me_in_production@localhost:5432/${DB_NAME}
+
+# >>> FILL THIS IN — see SETUP.md "Adding the remaining values" <<<
+ANTHROPIC_API_KEY=your_real_anthropic_api_key_here
+
+JWT_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
+
+# Real, reversible AES-256-GCM key for encrypting business-supplied
+# third-party API keys at rest (embeddings providers for guide
+# ingestion — see backend/src/lib/encryption.ts). MUST decode to exactly
+# 32 bytes; head -c 32 /dev/urandom guarantees that. Deliberately
+# separate from JWT_SECRET above — a signing secret and an encryption
+# key are different cryptographic jobs.
+CREDENTIAL_ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
+
+PORT=3000
+EOF
+  echo "Wrote $BACKEND_DIR/.env — DATABASE_URL password and JWT_SECRET were generated for you."
+  echo "ANTHROPIC_API_KEY still needs a real value — see SETUP.md."
+else
+  echo "backend/.env already exists, leaving it as-is."
+fi
+
+# --- 7. npm install + migrations --------------------------------------------
+step "Installing backend dependencies"
+cd "$BACKEND_DIR" && npm install || fail "npm install failed"
+
+step "Running database migrations (17 total — creates app_login, app_worker, app_public and every table/policy they need)"
+export $(grep -v '^#' "$BACKEND_DIR/.env" | xargs)
+npx node-pg-migrate up || fail "Migrations failed — see the error above"
+
+step "Building the backend"
+npm run build || fail "Build failed"
+
+step "Seeding demo data (an owner/partner/worker you can log in as)"
+npm run seed | tee "$SCRIPT_DIR/seed-output.txt" || echo "(seed failed or already seeded — not fatal, continuing)"
+
+# --- 8. Boot everything ------------------------------------------------------
+step "Starting the backend on port 3000"
+cd "$BACKEND_DIR" && export $(grep -v '^#' .env | xargs) && nohup node dist/server.js > "$SCRIPT_DIR/backend.log" 2>&1 &
+BACKEND_PID=$!
+sleep 2
+curl -s http://localhost:3000/health || fail "Backend did not start — check $SCRIPT_DIR/backend.log"
+echo "Backend running, PID $BACKEND_PID"
+
+step "Serving the frontend on port 8080"
+cd "$FRONTEND_DIR" && nohup python3 -m http.server 8080 > "$SCRIPT_DIR/frontend.log" 2>&1 &
+FRONTEND_PID=$!
+sleep 1
+echo "Frontend running, PID $FRONTEND_PID"
+
+echo ""
+echo "============================================================"
+echo " e-BOS is up. (Postgres ${PG_VERSION}, detected — not hardcoded.)"
+echo ""
+echo " Open in a browser on this device:"
+echo "   http://localhost:8080/e-bos-landing.html"
+echo ""
+echo " Your demo login (owner/partner/worker) is in:"
+echo "   $SCRIPT_DIR/seed-output.txt"
+echo ""
+echo " Backend API:   http://localhost:3000"
+echo " Backend logs:  $SCRIPT_DIR/backend.log"
+echo " Frontend logs: $SCRIPT_DIR/frontend.log"
+echo ""
+echo " To stop everything:"
+echo "   kill $BACKEND_PID $FRONTEND_PID"
+echo "   su postgres -c 'pg_ctl -D ${PG_DATA_DIR} stop'"
+echo ""
+echo " See SETUP.md for: adding your Anthropic API key (AI search,"
+echo " AI overview, and the AI receptionist won't work without it),"
+echo " and what's still genuinely untested vs. verified."
+echo "============================================================"

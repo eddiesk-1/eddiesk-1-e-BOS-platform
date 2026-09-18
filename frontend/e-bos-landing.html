@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AI·BOS — The Stream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..700;1,9..144,400..600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0A0D12; --bg-panel:#12161E; --bg-field:#171C26;
+    --line: rgba(237,239,243,0.09); --line-strong: rgba(237,239,243,0.16);
+    --text:#EDEFF3; --text-muted:#8A93A3; --text-faint:#545C6B;
+    --cat-food:#E8823C; --cat-agriculture:#4F9D5C; --cat-energy:#8B6FE8;
+    --cat-manufacturing:#4C86D6; --cat-education:#D6B24C;
+    --font-display:'Fraunces', Georgia, serif;
+    --font-body:'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+    --ease: cubic-bezier(.16,1,.3,1);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; height:100%; width:100%; background:var(--bg); color:var(--text);
+    font-family:var(--font-body); overflow:hidden; -webkit-font-smoothing:antialiased; }
+  button,input,textarea,select{ font-family:inherit; color:inherit; }
+  h2{ font-family:var(--font-display); font-weight:600; margin:0; }
+  p{ margin:0; }
+  .hidden{ display:none !important; }
+  .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+  :focus-visible{ outline:2px solid rgba(237,239,243,0.65); outline-offset:2px; border-radius:4px; }
+  @media (prefers-reduced-motion: no-preference){
+    #detail-panel, #chat-panel, .modal, #overlay-backdrop, #jc-menu, #tooltip, #topbar-inner, .success-state{ transition-property: transform, opacity; }
+  }
+
+  #app{ position:fixed; inset:0; }
+  #stream-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  #top-fade{ position:absolute; top:0; left:0; right:0; height:150px; z-index:2; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(10,13,18,0.9), rgba(10,13,18,0)); }
+
+  #topbar{ position:fixed; top:0; left:0; right:0; z-index:10; display:flex; justify-content:center;
+    padding: max(16px, env(safe-area-inset-top)) 16px 16px; pointer-events:none; }
+  #topbar-inner{ pointer-events:auto; display:flex; align-items:center; gap:10px; width:100%; max-width:920px;
+    background:rgba(18,22,30,0.62); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
+    border:1px solid var(--line); border-radius:999px; padding:7px 7px 7px 20px;
+    box-shadow:0 10px 34px rgba(0,0,0,0.38); opacity:0; transform:translateY(-14px);
+    animation: dropIn .6s var(--ease) .1s forwards; }
+  @keyframes dropIn{ to{ opacity:1; transform:translateY(0); } }
+  @media (prefers-reduced-motion: reduce){ #topbar-inner{ animation:none; opacity:1; transform:none; } }
+  #wordmark{ font-family:var(--font-display); font-weight:600; font-size:16px; letter-spacing:0.02em; white-space:nowrap; color:var(--text); opacity:0.92; }
+  #wordmark .dot{ color:var(--text-faint); padding:0 1px; }
+  #search-wrap{ position:relative; flex:1; display:flex; align-items:center; gap:8px; min-width:0; }
+  #search-icon{ flex:none; opacity:0.55; }
+  #search-input{ flex:1; min-width:0; background:none; border:none; outline:none; font-size:15px; color:var(--text); padding:10px 0; }
+  #search-input::placeholder{ color:var(--text-faint); }
+  #search-spinner{ flex:none; width:14px; height:14px; border-radius:50%; border:2px solid var(--line-strong);
+    border-top-color:var(--text-muted); animation: spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #search-clear{ flex:none; width:22px; height:22px; border-radius:50%; border:none; background:rgba(237,239,243,0.1);
+    color:var(--text-muted); font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  #search-clear:hover{ background:rgba(237,239,243,0.18); color:var(--text); }
+  #search-empty-hint{ position:absolute; top:calc(100% + 10px); left:0; font-size:12.5px; color:var(--text-muted);
+    background:rgba(18,22,30,0.85); border:1px solid var(--line); padding:6px 12px; border-radius:999px; white-space:nowrap; backdrop-filter:blur(10px); }
+  #search-suggestions{ position:absolute; top:calc(100% + 10px); left:0; right:0; z-index:12;
+    background:rgba(18,22,30,0.94); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%);
+    border:1px solid var(--line); border-radius:16px; padding:10px; box-shadow:0 16px 40px rgba(0,0,0,0.42); }
+  .suggestions-label{ font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--text-faint); margin:2px 6px 6px; }
+  .suggestion-chips{ display:flex; flex-direction:column; gap:1px; }
+  .chip{ text-align:left; background:none; border:none; border-radius:10px; cursor:pointer; color:var(--text); font-size:13px; padding:9px 10px; }
+  .chip:hover{ background:rgba(237,239,243,0.07); }
+  .chip::before{ content:'→  '; color:var(--text-faint); }
+  #join-create-btn{ flex:none; cursor:pointer; border:none; border-radius:999px; background:var(--text); color:var(--bg);
+    font-weight:700; font-size:13.5px; padding:11px 18px; transition:transform .15s ease, opacity .15s ease; }
+  #join-create-btn:hover{ transform:scale(1.03); opacity:0.92; }
+  #join-create-btn:active{ transform:scale(0.97); }
+  #join-create-btn .short-label{ display:none; font-size:16px; line-height:1; }
+  @media (max-width:560px){
+    #wordmark{ display:none; } #search-wrap{ gap:6px; }
+    #join-create-btn .full-label{ display:none; } #join-create-btn .short-label{ display:inline; }
+    #join-create-btn{ padding:11px 14px; }
+  }
+
+  #jc-menu{ position:fixed; top:76px; right:16px; z-index:11; width:min(300px, calc(100vw - 32px));
+    background:rgba(18,22,30,0.92); backdrop-filter:blur(20px) saturate(160%); border:1px solid var(--line);
+    border-radius:16px; padding:8px; box-shadow:0 16px 40px rgba(0,0,0,0.45); display:flex; flex-direction:column; gap:2px; }
+  .jc-option{ display:flex; flex-direction:column; gap:2px; text-align:left; background:none; border:none;
+    border-radius:11px; cursor:pointer; color:var(--text); padding:10px 12px; }
+  .jc-option:hover{ background:rgba(237,239,243,0.07); }
+  .jc-title{ font-weight:700; font-size:13.5px; }
+  .jc-sub{ font-size:12px; color:var(--text-muted); line-height:1.4; }
+
+  #tooltip{ position:fixed; z-index:15; width:236px; pointer-events:none; background:rgba(18,22,30,0.92);
+    backdrop-filter:blur(16px); border:1px solid var(--line); border-radius:14px; padding:12px 14px; box-shadow:0 12px 32px rgba(0,0,0,0.4); }
+  #tt-header{ display:flex; align-items:center; gap:7px; margin-bottom:2px; }
+  #tt-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  #tt-name{ font-weight:700; font-size:13.5px; }
+  #tt-business{ font-size:11.5px; color:var(--text-muted); margin-bottom:8px; }
+  #tt-stats{ display:flex; gap:10px; font-size:11px; color:var(--text-muted); margin-bottom:8px; flex-wrap:wrap; }
+  #tt-desc{ font-size:12px; color:var(--text-muted); line-height:1.45; }
+
+  #overlay-backdrop{ position:fixed; inset:0; z-index:19; background:rgba(6,8,11,0.55); backdrop-filter:blur(3px);
+    opacity:0; pointer-events:none; transition:opacity .32s ease; }
+  #overlay-backdrop.open{ opacity:1; pointer-events:auto; }
+  .close-btn{ position:absolute; top:18px; right:18px; z-index:2; width:32px; height:32px; border-radius:50%; border:none;
+    background:rgba(237,239,243,0.08); color:var(--text-muted); font-size:18px; line-height:1; cursor:pointer; }
+  .close-btn:hover{ background:rgba(237,239,243,0.16); color:var(--text); }
+  .eyebrow{ font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-faint); margin-bottom:6px; }
+  .modal-note{ font-size:11.5px; color:var(--text-faint); line-height:1.5; margin-top:14px; }
+
+  #detail-panel, #chat-panel{ position:fixed; top:0; right:0; height:100%; width:min(440px, 100vw); background:var(--bg-panel);
+    border-left:1px solid var(--line); z-index:21; overflow-y:auto; padding:26px 26px calc(26px + env(safe-area-inset-bottom));
+    transform:translateX(100%); transition:transform .42s var(--ease); display:flex; flex-direction:column; }
+  #detail-panel.open, #chat-panel.open{ transform:translateX(0); }
+  @media (max-width:640px){
+    #detail-panel, #chat-panel{ top:auto; bottom:0; left:0; right:0; height:auto; max-height:88vh; width:100%;
+      border-left:none; border-top:1px solid var(--line); border-radius:22px 22px 0 0; transform:translateY(100%);
+      padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
+    #detail-panel.open, #chat-panel.open{ transform:translateY(0); }
+  }
+
+  #detail-visual{ width:100%; aspect-ratio:16/9; border-radius:16px; margin-bottom:18px; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; font-size:56px; position:relative; flex:none; }
+  #detail-visual img, #detail-visual video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .detail-badge{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+    border:1px solid; border-radius:999px; padding:4px 11px; margin-bottom:12px; }
+  #detail-name{ font-size:24px; line-height:1.25; margin-bottom:4px; }
+  #detail-business{ font-size:13.5px; color:var(--text-muted); margin-bottom:18px; }
+  .stats-row{ display:flex; gap:22px; padding:16px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin-bottom:20px; }
+  .stat{ display:flex; flex-direction:column; gap:3px; }
+  .stat-value{ font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stat-label{ font-size:11px; color:var(--text-muted); }
+  .detail-section{ margin-bottom:20px; }
+  .detail-section p{ font-size:14px; line-height:1.6; color:var(--text); }
+  #detail-overview.shimmer{ color:var(--text-faint); }
+  .detail-actions{ display:flex; gap:10px; margin-top:6px; }
+  .detail-actions button{ flex:1; padding:13px; border-radius:12px; border:1px solid var(--line-strong); background:none;
+    color:var(--text); font-weight:700; font-size:13.5px; cursor:pointer; }
+  .detail-actions button:hover{ background:rgba(237,239,243,0.06); }
+  .detail-actions button.primary{ background:var(--text); color:var(--bg); border:none; }
+  .detail-actions button.primary:hover{ opacity:0.9; }
+  .detail-actions button:disabled{ opacity:0.55; cursor:default; }
+
+  /* Chat */
+  #chat-status-pill{ display:inline-block; font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:999px; margin-bottom:14px; }
+  .chat-pill.ai{ background:rgba(139,111,232,0.18); color:#B7A6F2; }
+  .chat-pill.waiting{ background:rgba(214,178,76,0.18); color:#E9CE7C; }
+  .chat-pill.staff{ background:rgba(79,157,92,0.18); color:#8FD69B; }
+  #chat-messages{ display:flex; flex-direction:column; gap:10px; overflow-y:auto; margin-bottom:14px; padding-right:2px; flex:1; min-height:120px; }
+  .chat-bubble{ max-width:86%; padding:10px 13px; border-radius:14px; font-size:13.5px; line-height:1.5; }
+  .chat-bubble.mine{ align-self:flex-end; background:var(--text); color:var(--bg); border-bottom-right-radius:4px; }
+  .chat-bubble.theirs{ align-self:flex-start; background:var(--bg-field); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .bubble-who{ font-size:10.5px; font-weight:700; color:var(--text-muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:.04em; }
+  .ai-chip{ background:rgba(139,111,232,0.25); color:#C9BDF5; border-radius:999px; padding:1px 6px; font-size:9px; margin-left:4px; text-transform:none; letter-spacing:0; }
+  .ai-disclosure-banner{ font-size:11px; color:#C9BDF5; background:rgba(139,111,232,0.12); border-radius:8px; padding:6px 9px; margin-bottom:6px; }
+  .typing-bubble{ opacity:0.55; font-style:italic; }
+  #chat-identify-row, #chat-redeem-row{ margin-bottom:10px; flex:none; }
+  #chat-identify-row button, #chat-redeem-toggle{ background:none; border:1px dashed var(--line-strong); border-radius:10px;
+    color:var(--text-muted); font-size:12.5px; padding:8px 11px; cursor:pointer; width:100%; text-align:left; }
+  #chat-identify-form, #chat-redeem-form{ display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  #chat-identify-form input, #chat-redeem-form input{ background:var(--bg-field); border:1px solid var(--line-strong);
+    border-radius:10px; padding:9px 11px; font-size:13px; color:var(--text); }
+  #chat-identify-form button, #chat-redeem-form button{ background:var(--text); color:var(--bg); border:none;
+    border-radius:10px; padding:9px; font-weight:700; font-size:12.5px; cursor:pointer; }
+  #chat-redeem-hint{ font-size:11.5px; margin-top:2px; }
+  #chat-redeem-hint.redeem-ok{ color:#8FD69B; }
+  #chat-redeem-hint.redeem-error{ color:#E39A8C; }
+  #chat-redeem-hint.demo-hint{ color:var(--text-faint); }
+  #chat-composer{ display:flex; gap:8px; flex:none; }
+  #chat-input{ flex:1; background:var(--bg-field); border:1px solid var(--line-strong); border-radius:999px; padding:11px 15px; font-size:13.5px; color:var(--text); }
+  #chat-composer button{ background:var(--text); color:var(--bg); border:none; border-radius:999px; padding:0 18px; font-weight:700; font-size:13px; cursor:pointer; }
+
+  .modal{ position:fixed; top:50%; left:50%; z-index:21; width:min(440px, calc(100vw - 32px)); max-height:85vh; overflow-y:auto;
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:20px; padding:28px; box-shadow:0 24px 60px rgba(0,0,0,0.5);
+    transform:translate(-50%,-46%) scale(0.97); opacity:0; pointer-events:none; transition:transform .32s var(--ease), opacity .28s ease; }
+  .modal.open{ transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto; }
+  .modal h2{ font-size:21px; margin-bottom:6px; }
+  .modal-sub{ font-size:13.5px; color:var(--text-muted); line-height:1.5; margin-bottom:22px; }
+  .field-label{ display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin:14px 0 6px; }
+  .field-label:first-of-type{ margin-top:0; }
+  #modal-join input, #modal-join textarea, #modal-create input, #modal-create textarea, #modal-create select{
+    width:100%; background:var(--bg-field); border:1px solid var(--line-strong); border-radius:10px; padding:11px 13px;
+    font-size:14px; color:var(--text); resize:vertical; }
+  #modal-join input::placeholder, #modal-join textarea::placeholder, #modal-create input::placeholder, #modal-create textarea::placeholder{ color:var(--text-faint); }
+  button.primary.full{ width:100%; margin-top:20px; padding:13px; border:none; border-radius:12px; background:var(--text);
+    color:var(--bg); font-weight:700; font-size:14px; cursor:pointer; }
+  button.primary.full:hover{ opacity:0.9; }
+  .success-state{ text-align:center; padding:14px 0 6px; }
+  .success-icon{ width:44px; height:44px; border-radius:50%; margin:0 auto 14px; background:rgba(79,157,92,0.18); color:#6FC77E;
+    display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .success-state p{ font-size:14px; color:var(--text-muted); line-height:1.5; }
+  #drop-zone{ display:block; text-align:center; border:1.5px dashed var(--line-strong); border-radius:14px; padding:28px 18px;
+    cursor:pointer; transition:border-color .2s ease, background .2s ease; }
+  #drop-zone.drag, #drop-zone:hover{ border-color:var(--text-muted); background:rgba(237,239,243,0.03); }
+  #drop-zone-text{ font-weight:700; font-size:14px; margin-bottom:6px; }
+  #drop-zone-sub{ font-size:12px; color:var(--text-muted); line-height:1.5; }
+  #upload-status{ margin-top:16px; font-size:13px; color:var(--text-muted); line-height:1.5; }
+  #upload-result{ margin-top:16px; }
+  #upload-result-text{ white-space:pre-wrap; font-family:var(--font-body); font-size:13.5px; line-height:1.6;
+    background:var(--bg-field); border:1px solid var(--line); border-radius:12px; padding:14px; margin:0; }
+
+  #velocity-indicator{ position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom)); z-index:5;
+    font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text-muted);
+    background:rgba(18,22,30,0.55); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px;
+    padding:6px 12px; opacity:0.28; transition:opacity .3s ease; pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="stream-canvas" aria-label="A continuously flowing stream of products and services from businesses on AI·BOS"></canvas>
+  <div id="top-fade" aria-hidden="true"></div>
+
+  <header id="topbar">
+    <div id="topbar-inner">
+      <div id="wordmark" aria-hidden="true">AI<span class="dot">·</span>BOS</div>
+      <div id="search-wrap" role="search">
+        <svg id="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <input id="search-input" type="text" placeholder="Search products or services…" aria-label="Search products or services" autocomplete="off" />
+        <div id="search-spinner" class="hidden" aria-hidden="true"></div>
+        <button id="search-clear" class="hidden" type="button" aria-label="Clear search">×</button>
+        <div id="search-empty-hint" class="hidden">No close matches — showing the full stream</div>
+        <div id="search-suggestions" class="hidden">
+          <div class="suggestions-label">Try asking naturally</div>
+          <div class="suggestion-chips">
+            <button class="chip" type="button" data-q="healthy snacks">Find healthy snacks</button>
+            <button class="chip" type="button" data-q="renewable energy solutions">Find renewable energy solutions</button>
+            <button class="chip" type="button" data-q="export-ready cocoa products">Find export-ready cocoa products</button>
+            <button class="chip" type="button" data-q="local bread suppliers">Find local bread suppliers</button>
+          </div>
+        </div>
+      </div>
+      <button id="join-create-btn" type="button">
+        <span class="full-label">Join or Create Business</span>
+        <span class="short-label" aria-hidden="true">+</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="jc-menu" class="hidden" role="menu">
+    <button class="jc-option" id="jc-join" role="menuitem" type="button">
+      <span class="jc-title">Join Existing Business</span>
+      <span class="jc-sub">Request access to a business already streaming.</span>
+    </button>
+    <button class="jc-option" id="jc-create" role="menuitem" type="button">
+      <span class="jc-title">Create Business</span>
+      <span class="jc-sub">Start one from scratch in under a minute.</span>
+    </button>
+    <button class="jc-option" id="jc-upload" role="menuitem" type="button">
+      <span class="jc-title">Upload Guide</span>
+      <span class="jc-sub">Let AI sketch a starting structure from a PDF, Word doc, or Markdown file.</span>
+    </button>
+    <button class="jc-option" id="jc-backoffice" role="menuitem" type="button">
+      <span class="jc-title">Sign In to Back Office</span>
+      <span class="jc-sub">Already running a business here? Manage it from your dashboard.</span>
+    </button>
+  </div>
+
+  <div id="tooltip" class="hidden" aria-hidden="true">
+    <div id="tt-header"><span id="tt-dot"></span><span id="tt-name"></span></div>
+    <div id="tt-business"></div>
+    <div id="tt-stats"><span id="tt-sales"></span><span id="tt-repeat"></span></div>
+    <div id="tt-desc"></div>
+  </div>
+
+  <div id="overlay-backdrop" class="hidden"></div>
+
+  <div id="detail-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="detail-name">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div id="detail-visual"><span id="detail-icon"></span></div>
+    <div class="detail-badge" id="detail-category"></div>
+    <h2 id="detail-name"></h2>
+    <div id="detail-business"></div>
+    <div class="stats-row">
+      <div class="stat"><span class="stat-value" id="detail-sales"></span><span class="stat-label">Sales</span></div>
+      <div class="stat"><span class="stat-value" id="detail-repeat"></span><span class="stat-label">Repeat customers</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="eyebrow">Description</div>
+      <p id="detail-description"></p>
+    </div>
+    <div class="detail-section">
+      <div class="eyebrow">AI overview</div>
+      <p id="detail-overview" class="shimmer">Reading the details…</p>
+    </div>
+    <div class="detail-actions">
+      <button id="detail-contact" type="button">Message business</button>
+      <button id="detail-purchase" type="button" class="primary">Get this</button>
+    </div>
+  </div>
+
+  <div id="chat-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="chat-business-name">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Chat</div>
+    <h2 id="chat-business-name">—</h2>
+    <div id="chat-status-pill" class="chat-pill ai">AI receptionist</div>
+    <div id="chat-messages"></div>
+    <div id="chat-identify-row">
+      <button id="chat-identify-btn" type="button">Share your name &amp; email</button>
+      <div id="chat-identify-form" class="hidden">
+        <input id="chat-name" placeholder="Your name" autocomplete="off" />
+        <input id="chat-email" placeholder="you@example.com" type="email" autocomplete="off" />
+        <button id="chat-identify-submit" type="button">Share details</button>
+      </div>
+    </div>
+    <div id="chat-redeem-row">
+      <button id="chat-redeem-toggle" type="button">Have an order confirmation code?</button>
+      <div id="chat-redeem-form" class="hidden">
+        <input id="chat-redeem-input" placeholder="Paste your code" autocomplete="off" />
+        <button id="chat-redeem-submit" type="button">Submit</button>
+        <div id="chat-redeem-hint" class="demo-hint">Demo code: DEMO-1234 (works once)</div>
+      </div>
+    </div>
+    <form id="chat-composer">
+      <input id="chat-input" placeholder="Type a message…" autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <div id="modal-join" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="join-title">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Join an existing business</div>
+    <h2 id="join-title">Request access</h2>
+    <p class="modal-sub">Ask to join a business already on AI·BOS. The owner reviews every request.</p>
+    <form id="join-form">
+      <label class="field-label" for="join-business">Business name</label>
+      <input list="business-list" id="join-business" required placeholder="e.g. Hearth &amp; Vine Bakery" autocomplete="off" />
+      <datalist id="business-list"></datalist>
+      <label class="field-label" for="join-message">A short note (optional)</label>
+      <textarea id="join-message" rows="3" placeholder="Tell them who you are and what you'd like to help with"></textarea>
+      <button type="submit" class="primary full">Send request</button>
+    </form>
+    <div id="join-success" class="hidden success-state">
+      <div class="success-icon">✓</div>
+      <p>Request sent. The owner will follow up by email.</p>
+    </div>
+    <p class="modal-note">This captures an inquiry for manual follow-up — the backend doesn't expose a public self-serve join flow yet.</p>
+  </div>
+
+  <div id="modal-create" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="create-title">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Start something new</div>
+    <h2 id="create-title">Create a business</h2>
+    <p class="modal-sub">Give it a name and a category — you can flesh out the rest once it's live.</p>
+    <form id="create-form">
+      <label class="field-label" for="create-name">Business name</label>
+      <input id="create-name" required placeholder="e.g. Foundry Learning" autocomplete="off" />
+      <label class="field-label" for="create-category">Category</label>
+      <select id="create-category" required>
+        <option value="food">Food</option>
+        <option value="agriculture">Agriculture</option>
+        <option value="energy">Energy</option>
+        <option value="manufacturing">Manufacturing</option>
+        <option value="education">Education</option>
+      </select>
+      <label class="field-label" for="create-desc">What does it make or do?</label>
+      <textarea id="create-desc" rows="3" required placeholder="One or two sentences is plenty for now"></textarea>
+      <button type="submit" class="primary full">Create business</button>
+    </form>
+    <div id="create-success" class="hidden success-state">
+      <div class="success-icon">✓</div>
+      <p id="create-success-text"></p>
+    </div>
+    <p class="modal-note">Creating a business is an authenticated, back-office action on the real API (<code>POST /businesses</code>) — this form is a lead-capture placeholder until that login flow is built here.</p>
+  </div>
+
+  <div id="modal-upload" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Upload an operating guide</div>
+    <h2 id="upload-title">We'll sketch a structure</h2>
+    <p class="modal-sub">A PDF, Word doc, or Markdown file works. This previews what a starting structure could look like.</p>
+    <label id="drop-zone" for="upload-file">
+      <div id="drop-zone-text">Drop your guide here, or choose a file</div>
+      <div id="drop-zone-sub">.md and .txt get a live AI preview below · other formats show this placeholder note</div>
+    </label>
+    <input type="file" id="upload-file" accept=".md,.txt,.pdf,.docx" class="sr-only" />
+    <div id="upload-status" class="hidden"></div>
+    <div id="upload-result" class="hidden">
+      <div class="eyebrow">Proposed structure</div>
+      <pre id="upload-result-text"></pre>
+    </div>
+    <p class="modal-note">No guide-ingestion endpoint exists on the backend yet — this is a client-side preview only, not a real create-business call.</p>
+  </div>
+
+  <div id="velocity-indicator" aria-hidden="true">1.0×</div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* =====================================================================
+     CONFIGURATION — the one line you need to change to point this file
+     at a real e-BOS backend. See SETUP.md.
+
+     '' (empty string, same-origin) is correct if this HTML file is
+     served BY the backend itself, or from the same host:port. Set it to
+     a full origin (e.g. 'http://localhost:3000' or
+     'https://your-backend-domain.example') if this file is opened
+     directly (file://) or served from a different host/port than the
+     backend.
+     ===================================================================== */
+  var BACKEND_BASE_URL = '';
+
+  /* ================= Category system ================= */
+  var CATEGORIES = {
+    food:          { label:'Food',          color:'#E8823C' },
+    agriculture:   { label:'Agriculture',   color:'#4F9D5C' },
+    energy:        { label:'Energy',        color:'#8B6FE8' },
+    manufacturing: { label:'Manufacturing', color:'#4C86D6' },
+    education:     { label:'Education',     color:'#D6B24C' }
+  };
+
+
+  /* ================= Persistent token store (defensive) =================
+     The real spec says "store it in localStorage, not a cookie." Artifacts
+     in this environment can't use localStorage/sessionStorage, so this
+     uses the supported window.storage API when present and falls back to
+     an in-memory map otherwise (e.g. if this file is opened outside
+     Claude's UI) — every operation is try/caught per that API's own
+     guidance, since a missing key throws rather than returning null. */
+  var TokenStore = (function(){
+    var memory = {};
+    async function get(key){
+      if (memory.hasOwnProperty(key)) return memory[key];
+      if (window.storage){
+        try { var r = await window.storage.get(key); var v = r ? JSON.parse(r.value) : null; memory[key] = v; return v; }
+        catch (e){ return null; }
+      }
+      return null;
+    }
+    async function set(key, value){
+      memory[key] = value;
+      if (window.storage){ try { await window.storage.set(key, JSON.stringify(value)); } catch (e){} }
+    }
+    return { get: get, set: set };
+  })();
+
+  /* ================= Backend (LIVE — wired to the real e-BOS API) =======
+     This used to be a transport-swappable mock; it is now real. Every
+     method below is a fetch() against BACKEND_BASE_URL (set this once,
+     near the top of this file — see the accompanying SETUP.md). Nothing
+     else in this file talks to a network directly — this remains the one
+     object responsible for it, same architecture as the mock had, now
+     pointed at a live server instead of local demo data.
+
+     AUTH MODEL, exactly as built and tested in the real backend:
+       - GET /product-stream, POST /product-stream/search,
+         POST /product-stream/overview, and every /conversations/:id/*
+         VISITOR route: no login, no JWT. Visitor identity is a bare
+         possession token (see TokenStore above) sent as the
+         X-Visitor-Token header — issued once by POST /conversations and
+         never recoverable if lost (see this file's own TokenStore
+         comment, and the spec's §4.1 for why that's deliberate).
+       - POST /guides/analyze: requires a real logged-in JWT (an owner
+         action — see below). This landing page has no login/signup
+         screen at all, so there is currently nowhere in THIS FILE to
+         obtain that token. uploadGuidePreview() below is honest about
+         that rather than faking it — see its own comment.
+     ===================================================================== */
+  var Backend = (function(){
+
+    async function apiFetch(path, options){
+      // headers must be computed and applied LAST, not folded into the
+      // first Object.assign argument — options (the second/final arg to
+      // the outer Object.assign) also carries its own `headers` key on
+      // every visitor-token call (from visitorHeaders()), and
+      // Object.assign's later-argument-wins rule meant that raw,
+      // Content-Type-less options.headers was clobbering the merged
+      // headers object below it, silently dropping
+      // "Content-Type: application/json" on every call that sends a
+      // JSON body (postVisitorMessage, identifyVisitor, redeemToken,
+      // startConversation, search, overview) — Fastify's JSON body
+      // parser needs that header to parse the request at all, so those
+      // calls all failed with a confusing "X is required" 400. Found by
+      // running the actual extracted Backend code against the live
+      // backend, not from reading this function in isolation.
+      //
+      // Content-Type is only set when options.body is actually present
+      // — NOT unconditionally. The first version of this fix set it on
+      // every call regardless, which introduced a SECOND, different bug:
+      // requestAIReply has no body at all (see its own comment above —
+      // "the visitor token + conversation id are the entire request"),
+      // and sending Content-Type: application/json with an empty body
+      // makes Fastify correctly reject the request outright
+      // ("Body cannot be empty when content-type is set to
+      // 'application/json'", surfaced as a raw 500 rather than the
+      // intended 503-on-no-api-key). Also found by running the real
+      // code, in the very next test after the first fix — worth
+      // remembering that a fix for one call site can silently break a
+      // different one with a different shape, and the only way to know
+      // is running every call, not just the one that was broken.
+      var mergedOptions = Object.assign({}, options);
+      if (options && options.body !== undefined){
+        mergedOptions.headers = Object.assign({ 'Content-Type': 'application/json' }, (options && options.headers) || {});
+      } else if (options && options.headers){
+        mergedOptions.headers = options.headers;
+      }
+      var res = await fetch(BACKEND_BASE_URL + path, mergedOptions);
+      if (!res.ok){
+        var body = null;
+        try { body = await res.json(); } catch (e){}
+        var err = new Error((body && body.message) || ('API error ' + res.status));
+        err.status = res.status;
+        err.reason = body && body.reason;
+        err.code = body && body.error;
+        throw err;
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    function visitorHeaders(token){ return { 'X-Visitor-Token': token }; }
+
+    function fetchSnapshot(){
+      return apiFetch('/product-stream').then(function(res){ return res.items; });
+    }
+
+    async function searchProductStream(query, catalog){
+      var res = await apiFetch('/product-stream/search', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: query,
+          catalog: catalog.map(function(p){ return { id: p.id, name: p.name, category: p.category, desc: p.description }; })
+        })
+      });
+      return res.ids;
+    }
+
+    async function getProductOverview(fields){
+      var res = await apiFetch('/product-stream/overview', { method: 'POST', body: JSON.stringify(fields) });
+      return res.overview;
+    }
+
+    async function startConversation(opts){
+      var res = await apiFetch('/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ businessId: opts.businessId, message: opts.message, subject: opts.subject, visitorDisplayName: opts.visitorDisplayName })
+      });
+      // conversation.id (not a separate conversationId field) per the
+      // real POST /conversations response shape — verified against a
+      // live call during this integration.
+      return { visitorToken: res.visitorToken, conversation: res.conversation, message: res.message };
+    }
+
+    async function getConversation(conversationId, token){
+      return apiFetch('/conversations/' + conversationId, { headers: visitorHeaders(token) });
+    }
+
+    async function postVisitorMessage(conversationId, token, body){
+      return apiFetch('/conversations/' + conversationId + '/messages', {
+        method: 'POST', headers: visitorHeaders(token), body: JSON.stringify({ message: body })
+      });
+    }
+
+    async function requestAIReply(conversationId, token){
+      // The real endpoint takes no body — the visitor token + conversation
+      // id are the entire request. See the spec's own caveat (also true
+      // here): the 409-on-no-new-message path sits behind the backend's
+      // ANTHROPIC_API_KEY gate and was not exercised end-to-end against a
+      // live key during this integration — this call is wired correctly
+      // to the real contract, but that ONE status code's behavior is
+      // "should be true," not confirmed, same as the spec says.
+      return apiFetch('/conversations/' + conversationId + '/ai-reply', {
+        method: 'POST', headers: visitorHeaders(token)
+      });
+    }
+
+    async function identifyVisitor(conversationId, token, info){
+      return apiFetch('/conversations/' + conversationId + '/identify', {
+        method: 'POST', headers: visitorHeaders(token), body: JSON.stringify({ name: info.name, email: info.email })
+      });
+    }
+
+    async function redeemToken(conversationId, token, transactionToken){
+      return apiFetch('/conversations/' + conversationId + '/redeem-token', {
+        method: 'POST', headers: visitorHeaders(token), body: JSON.stringify({ transactionToken: transactionToken })
+      });
+    }
+
+    async function uploadGuidePreview(file){
+      // HONEST GAP, not a bug: POST /guides/analyze requires a real JWT
+      // (it's an owner action — analyzing a guide is part of creating a
+      // business, see the backend's own routes/ai.ts comment on this).
+      // This landing page has no login/signup screen, so there is no
+      // token available here to send. Rather than fake auth or silently
+      // drop the feature, this tells the visitor plainly what's true:
+      // guide analysis needs an account, which isn't part of this public
+      // page. If a real signup/login flow gets added to this frontend
+      // later, wire this the same way as every method above (fetch with
+      // an Authorization: Bearer header instead of X-Visitor-Token) — see
+      // SETUP.md's "Adding the remaining values" section.
+      return { preview: null, requiresAccount: true };
+    }
+
+    return {
+      fetchSnapshot: fetchSnapshot, searchProductStream: searchProductStream, getProductOverview: getProductOverview,
+      startConversation: startConversation, getConversation: getConversation, postVisitorMessage: postVisitorMessage,
+      requestAIReply: requestAIReply, identifyVisitor: identifyVisitor, redeemToken: redeemToken,
+      uploadGuidePreview: uploadGuidePreview
+    };
+  })();
+
+  /* ================= Packing / stream engine ================= */
+  var BUCKETS = 120;
+  var MIN_RADIUS = 30;
+  var BASE_SPEED = reducedMotion ? 8 : 30;
+  var BUFFER_BELOW = 420;
+  var MAX_ACTIVE = 240;
+  var POLL_INTERVAL_MS = 5000; // "pick an interval" — the real backend has no push channel
+
+  var canvas = document.getElementById('stream-canvas');
+  var ctx = canvas.getContext('2d');
+
+  var canvasWidth = 0, canvasHeight = 0, maxRadius = 200, bucketWidth = 10;
+  var scrollY = 0, velocity = 1, targetVelocity = 1, lastInputTime = 0;
+  var activeCircles = [], frontier = [], activeSearchIds = null;
+  var catalogById = {}, catalogList = [];
+
+  function computeRadiusFromSize(size){
+    return MIN_RADIUS + clamp(size, 0, 1) * (maxRadius - MIN_RADIUS);
+  }
+  function isMatched(item){ return !activeSearchIds || activeSearchIds.has(item.id); }
+
+  function pickWeightedItem(){
+    if (!catalogList.length) return null;
+    var total = 0, i;
+    for (i = 0; i < catalogList.length; i++) total += (0.05 + catalogList[i].visibilityWeight);
+    var r = Math.random() * total;
+    for (i = 0; i < catalogList.length; i++){
+      r -= (0.05 + catalogList[i].visibilityWeight);
+      if (r <= 0) return catalogList[i];
+    }
+    return catalogList[catalogList.length - 1];
+  }
+
+  function resolvePlacement(x, y, radius){
+    var gap = Math.max(0.5, radius * 0.01);
+    for (var tries = 0; tries < 60; tries++){
+      var hitC = null, hitDx = 0, hitMinDist = 0;
+      for (var i = activeCircles.length - 1; i >= 0; i--){
+        var c = activeCircles[i];
+        if (c.packY < y - maxRadius * 2 - radius) continue;
+        var dx = x - c.x, dy = y - c.packY;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var minDist = radius + c.radius + gap;
+        if (dist < minDist){ hitC = c; hitDx = dx; hitMinDist = minDist; break; }
+      }
+      if (!hitC) return { x: x, y: y };
+      var neededDy = Math.sqrt(Math.max(0, hitMinDist * hitMinDist - hitDx * hitDx));
+      y = hitC.packY + neededDy;
+    }
+    return { x: x, y: y };
+  }
+
+  function spawnCircle(){
+    var item = pickWeightedItem();
+    if (!item) return;
+    var radius = computeRadiusFromSize(item.size);
+    var span = clamp(Math.round((radius * 2) / bucketWidth), 1, BUCKETS);
+    var bestStart = 0, bestVal = Infinity, start, k;
+    for (start = 0; start <= BUCKETS - span; start++){
+      var maxInWindow = -Infinity;
+      for (k = 0; k < span; k++) maxInWindow = Math.max(maxInWindow, frontier[start + k]);
+      if (maxInWindow < bestVal){ bestVal = maxInWindow; bestStart = start; }
+    }
+    var x0 = clamp((bestStart + span / 2) * bucketWidth, radius, canvasWidth - radius);
+    var y0 = bestVal + radius;
+    var placed = resolvePlacement(x0, y0, radius);
+    var startBucket = clamp(Math.round(placed.x / bucketWidth - span / 2), 0, BUCKETS - span);
+    for (k = 0; k < span; k++) frontier[startBucket + k] = Math.max(frontier[startBucket + k], placed.y + radius);
+
+    var matched = isMatched(item);
+    var scaleTarget = matched ? (activeSearchIds ? 1.05 : 1) : 0.56;
+    activeCircles.push({
+      id: uid(), itemId: item.id, x: placed.x, packY: placed.y, radius: radius,
+      spawnedAt: performance.now(), pulseStart: -1e9,
+      alpha: matched ? 1 : 0.16, targetAlpha: matched ? 1 : 0.16,
+      glow: (activeSearchIds && matched) ? 1 : 0, targetGlow: (activeSearchIds && matched) ? 1 : 0,
+      scale: scaleTarget, targetScale: scaleTarget
+    });
+  }
+
+  function maintainBuffer(){
+    if (!catalogList.length || activeCircles.length > MAX_ACTIVE) return;
+    var targetDepth = scrollY + canvasHeight + BUFFER_BELOW;
+    var guard = 0;
+    while (Math.min.apply(null, frontier) < targetDepth && guard < 30 && activeCircles.length <= MAX_ACTIVE){ spawnCircle(); guard++; }
+  }
+
+  function cullExited(){
+    var threshold = scrollY - 100, next = [];
+    for (var i = 0; i < activeCircles.length; i++){ var c = activeCircles[i]; if (c.packY + c.radius > threshold) next.push(c); }
+    activeCircles = next;
+  }
+
+  function hitTest(px, py){
+    var best = null, bestDist = Infinity;
+    for (var i = 0; i < activeCircles.length; i++){
+      var c = activeCircles[i], renderY = c.packY - scrollY;
+      var dx = px - c.x, dy = py - renderY, dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist <= c.radius && dist < bestDist){ best = c; bestDist = dist; }
+    }
+    return best;
+  }
+
+  /* Polling replaces the WebSocket this backend doesn't have: refetch the
+     snapshot, and only pulse circles whose underlying data actually
+     changed since the last poll — not resize them (packed neighbors
+     assume a fixed radius; changing it in place would reintroduce
+     overlaps). New size/weight values apply next time that item spawns. */
+  function applyLiveUpdate(item){
+    var prev = catalogById[item.id];
+    var changed = !prev || prev.sales !== item.sales || prev.repeatCustomers !== item.repeatCustomers ||
+      prev.size !== item.size || prev.visibilityWeight !== item.visibilityWeight;
+    catalogById[item.id] = item;
+    if (!prev) catalogList.push(item);
+    else { for (var i = 0; i < catalogList.length; i++){ if (catalogList[i].id === item.id){ catalogList[i] = item; break; } } }
+    if (changed){
+      for (var j = 0; j < activeCircles.length; j++){ if (activeCircles[j].itemId === item.id) activeCircles[j].pulseStart = performance.now(); }
+    }
+  }
+
+  var pollTimer = null;
+  function startPolling(){
+    stopPolling();
+    pollTimer = setInterval(function(){
+      Backend.fetchSnapshot().then(function(items){
+        for (var i = 0; i < items.length; i++) applyLiveUpdate(items[i]);
+      }).catch(function(err){
+        // Unlike the initial load (see Init below), a failure on a
+        // PERIODIC poll shouldn't take down the page — it already has
+        // real data from the first successful load. Log and skip this
+        // cycle; the next poll (POLL_INTERVAL_MS later) tries again.
+        console.warn('Product stream poll failed, will retry next cycle:', err);
+      });
+    }, POLL_INTERVAL_MS);
+  }
+  function stopPolling(){ if (pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+
+  /* ================= Media (video -> image -> placeholder) ================= */
+  var mediaCache = {}, mediaAttempted = {};
+  function mediaStateFor(item){
+    if (!mediaAttempted[item.id]){
+      mediaAttempted[item.id] = true;
+      if (item.media && item.media.video){
+        var v = document.createElement('video');
+        v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true;
+        v.addEventListener('loadeddata', function(){ mediaCache[item.id] = { el: v, kind: 'video' }; v.play().catch(function(){}); });
+        v.addEventListener('error', function(){ tryImage(item); });
+        v.src = item.media.video;
+      } else if (item.media && item.media.image){
+        tryImage(item);
+      }
+    }
+    return mediaCache[item.id] || null;
+  }
+  function tryImage(item){
+    var img = new Image();
+    img.onload = function(){ mediaCache[item.id] = { el: img, kind: 'image' }; };
+    img.onerror = function(){ mediaCache[item.id] = null; };
+    img.src = item.media.image;
+  }
+  function drawMediaCover(el, x, y, w, h){
+    var sw = el.videoWidth || el.naturalWidth || 0, sh = el.videoHeight || el.naturalHeight || 0;
+    if (!sw || !sh) return false;
+    var srcRatio = sw / sh, dstRatio = w / h, sx, sy, sWidth, sHeight;
+    if (srcRatio > dstRatio){ sHeight = sh; sWidth = sh * dstRatio; sx = (sw - sWidth) / 2; sy = 0; }
+    else { sWidth = sw; sHeight = sw / dstRatio; sx = 0; sy = (sh - sHeight) / 2; }
+    ctx.drawImage(el, sx, sy, sWidth, sHeight, x, y, w, h);
+    return true;
+  }
+
+  function drawCircle(c, renderY){
+    var item = catalogById[c.itemId];
+    if (!item) return;
+    var cat = CATEGORIES[item.category];
+    var now = performance.now();
+    var growScale = reducedMotion ? 1 : Math.min(1, (now - c.spawnedAt) / 350);
+    var pulseAge = now - c.pulseStart;
+    var pulseAmt = (pulseAge >= 0 && pulseAge < 900) ? (1 - pulseAge / 900) : 0;
+    var r = c.radius * growScale * c.scale;
+    if (r < 1) return;
+
+    ctx.save();
+    ctx.globalAlpha = c.alpha;
+
+    if (c.glow > 0.02){
+      ctx.save(); ctx.globalAlpha = c.alpha * c.glow * 0.5;
+      try { ctx.filter = 'blur(' + (r * 0.22) + 'px)'; } catch(e){}
+      ctx.beginPath(); ctx.arc(c.x, renderY, r * 1.16, 0, Math.PI * 2); ctx.fillStyle = cat.color; ctx.fill(); ctx.restore();
+    }
+    if (pulseAmt > 0.02){
+      ctx.save(); ctx.globalAlpha = c.alpha * pulseAmt * 0.45;
+      try { ctx.filter = 'blur(' + (r * 0.18) + 'px)'; } catch(e){}
+      ctx.beginPath(); ctx.arc(c.x, renderY, r * (1.08 + pulseAmt * 0.14), 0, Math.PI * 2); ctx.fillStyle = '#EDEFF3'; ctx.fill(); ctx.restore();
+    }
+
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = r * 0.3; ctx.shadowOffsetY = r * 0.1;
+    var grad = ctx.createRadialGradient(c.x - r*0.35, renderY - r*0.4, r*0.1, c.x, renderY, r*1.05);
+    grad.addColorStop(0, lighten(cat.color, 0.32)); grad.addColorStop(0.55, cat.color); grad.addColorStop(1, darken(cat.color, 0.35));
+    ctx.beginPath(); ctx.arc(c.x, renderY, r, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+    var media = mediaStateFor(item), drewMedia = false;
+    if (media && media.el){
+      ctx.save(); ctx.beginPath(); ctx.arc(c.x, renderY, r, 0, Math.PI * 2); ctx.clip();
+      drewMedia = drawMediaCover(media.el, c.x - r, renderY - r, r * 2, r * 2);
+      ctx.restore();
+    }
+    if (!drewMedia){
+      // icon is an arbitrary business-chosen string per spec — rendered as-is, no validation
+      ctx.font = Math.max(10, r * 0.85) + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(item.icon, c.x, renderY + r * 0.03);
+    }
+
+    ctx.lineWidth = Math.max(1, r * 0.02); ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.arc(c.x, renderY, r, 0, Math.PI * 2); ctx.stroke();
+
+    if (r > 46){
+      ctx.font = '700 ' + Math.min(14, r * 0.15) + 'px Manrope, sans-serif';
+      ctx.fillStyle = drewMedia ? 'rgba(255,255,255,0.95)' : 'rgba(10,13,18,0.85)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      if (drewMedia){ ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6; }
+      var label = item.name.length > 22 ? item.name.slice(0,20) + '…' : item.name;
+      ctx.fillText(label, c.x, renderY + r * 0.44);
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
+
+  function resizeCanvas(){
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvasWidth = window.innerWidth; canvasHeight = window.innerHeight;
+    canvas.width = canvasWidth * dpr; canvas.height = canvasHeight * dpr;
+    canvas.style.width = canvasWidth + 'px'; canvas.style.height = canvasHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    maxRadius = Math.min(canvasWidth * 0.24, 360);
+    bucketWidth = canvasWidth / BUCKETS;
+  }
+  var resizeDebounce;
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(function(){
+      resizeCanvas(); activeCircles = [];
+      frontier = new Array(BUCKETS).fill(scrollY - canvasHeight * 0.6);
+      for (var i = 0; i < 25; i++) maintainBuffer();
+    }, 200);
+  });
+
+  var lastTime = performance.now();
+  var vIndicator = document.getElementById('velocity-indicator');
+  function tick(now){
+    var dt = Math.min(0.05, (now - lastTime) / 1000); lastTime = now;
+    velocity += (targetVelocity - velocity) * Math.min(1, dt * 4);
+    if (now - lastInputTime > 1400 && Math.abs(targetVelocity - 1) > 0.01) targetVelocity += (1 - targetVelocity) * Math.min(1, dt * 1.1);
+    scrollY += BASE_SPEED * velocity * dt;
+    maintainBuffer(); cullExited();
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    for (var i = 0; i < activeCircles.length; i++){
+      var c = activeCircles[i];
+      c.alpha += (c.targetAlpha - c.alpha) * Math.min(1, dt * 6);
+      c.glow += (c.targetGlow - c.glow) * Math.min(1, dt * 6);
+      c.scale += (c.targetScale - c.scale) * Math.min(1, dt * 6);
+      var renderY = c.packY - scrollY;
+      if (renderY < -c.radius - 60 || renderY > canvasHeight + c.radius + 60) continue;
+      drawCircle(c, renderY);
+    }
+    vIndicator.textContent = velocity.toFixed(1) + '×';
+    vIndicator.style.opacity = Math.abs(velocity - 1) > 0.04 ? '0.9' : '0.28';
+    requestAnimationFrame(tick);
+  }
+
+  /* ================= Search (backend-shaped, fade+shrink) ================= */
+  var searchToken = 0;
+  var searchInput = document.getElementById('search-input');
+  var searchSpinner = document.getElementById('search-spinner');
+  var searchClearBtn = document.getElementById('search-clear');
+  var searchEmptyHint = document.getElementById('search-empty-hint');
+  var searchSuggestions = document.getElementById('search-suggestions');
+
+  // callClaude() — the direct, unauthenticated, client-side call to
+  // https://api.anthropic.com/v1/messages — has been REMOVED, not just
+  // unused. It was the real security defect this integration exists to
+  // fix: no API key, no auth header, callable by anyone with dev tools
+  // open, against whatever key eventually backed it. Every AI-backed
+  // feature in this file (search, product overview, the AI receptionist)
+  // now goes through Backend's real fetch() calls to this project's own
+  // server, which holds ANTHROPIC_API_KEY server-side and never exposes
+  // it to any client. If you're reading this because a future edit
+  // needs an AI call this file doesn't already make, add a new endpoint
+  // on the BACKEND (see the actual e-BOS backend's src/routes/ai.ts for
+  // the established pattern), not a new client-side fetch to Anthropic.
+
+  function localKeywordMatches(query){
+    var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    var matches = new Set();
+    for (var i = 0; i < catalogList.length; i++){
+      var p = catalogList[i];
+      var hay = (p.name + ' ' + p.description + ' ' + p.category + ' ' + p.businessName).toLowerCase();
+      for (var t = 0; t < terms.length; t++){ if (hay.indexOf(terms[t]) !== -1){ matches.add(p.id); break; } }
+    }
+    return matches;
+  }
+
+  function applySearchResults(idSet){
+    activeSearchIds = idSet;
+    if (idSet && idSet.size === 0) searchEmptyHint.classList.remove('hidden'); else searchEmptyHint.classList.add('hidden');
+    for (var i = 0; i < activeCircles.length; i++){
+      var c = activeCircles[i], item = catalogById[c.itemId], matched = item ? isMatched(item) : true;
+      c.targetAlpha = matched ? 1 : 0.16;
+      c.targetGlow = (activeSearchIds && matched) ? 1 : 0;
+      c.targetScale = matched ? (activeSearchIds ? 1.05 : 1) : 0.56;
+    }
+  }
+  function clearSearchState(){
+    activeSearchIds = null;
+    searchEmptyHint.classList.add('hidden'); searchClearBtn.classList.add('hidden'); searchSpinner.classList.add('hidden');
+    for (var i = 0; i < activeCircles.length; i++){ activeCircles[i].targetAlpha = 1; activeCircles[i].targetGlow = 0; activeCircles[i].targetScale = 1; }
+  }
+
+  async function runAISearch(query){
+    var myToken = searchToken;
+    var catalog = catalogList.map(function(p){ return { id:p.id, name:p.name, category:p.category, desc:p.description }; });
+    try {
+      var ids = await Backend.searchProductStream(query, catalog);
+      if (myToken !== searchToken) return;
+      applySearchResults(new Set(ids));
+    } catch (err){
+      console.warn('search unavailable (503-equivalent) — staying on the local keyword fallback', err);
+    } finally {
+      if (myToken === searchToken) searchSpinner.classList.add('hidden');
+    }
+  }
+
+  var searchDebounce;
+  function triggerSearch(q){
+    clearTimeout(searchDebounce); searchToken++;
+    if (!q){ clearSearchState(); return; }
+    searchClearBtn.classList.remove('hidden');
+    applySearchResults(localKeywordMatches(q));
+    searchSpinner.classList.remove('hidden');
+    var myToken = searchToken;
+    searchDebounce = setTimeout(function(){ if (myToken === searchToken) runAISearch(q); }, 500);
+  }
+  searchInput.addEventListener('input', function(){
+    var q = searchInput.value.trim();
+    if (q) searchSuggestions.classList.add('hidden');
+    triggerSearch(q);
+  });
+  searchInput.addEventListener('focus', function(){ if (!searchInput.value.trim()) searchSuggestions.classList.remove('hidden'); });
+  searchInput.addEventListener('blur', function(){ setTimeout(function(){ searchSuggestions.classList.add('hidden'); }, 150); });
+  Array.prototype.forEach.call(document.querySelectorAll('.chip'), function(chip){
+    chip.addEventListener('click', function(){
+      var q = 'Find ' + chip.getAttribute('data-q');
+      searchInput.value = q; searchSuggestions.classList.add('hidden'); triggerSearch(q.trim());
+    });
+  });
+  searchClearBtn.addEventListener('click', function(){ searchInput.value = ''; searchToken++; clearSearchState(); searchInput.focus(); });
+
+  /* ================= Overlay management ================= */
+  var overlayBackdrop = document.getElementById('overlay-backdrop');
+  var activeOverlayEl = null, overlayOpen = false;
+
+  function openOverlayEl(el){
+    if (activeOverlayEl && activeOverlayEl !== el) closeActiveOverlay(true);
+    activeOverlayEl = el; overlayOpen = true;
+    overlayBackdrop.classList.remove('hidden'); el.classList.remove('hidden');
+    void el.offsetHeight;
+    requestAnimationFrame(function(){ overlayBackdrop.classList.add('open'); el.classList.add('open'); });
+    var focusable = el.querySelector('input, select, textarea, button');
+    if (focusable) setTimeout(function(){ focusable.focus(); }, 320);
+  }
+  function closeActiveOverlay(keepBackdrop){
+    if (!activeOverlayEl) return;
+    var el = activeOverlayEl;
+    if (el.id === 'chat-panel') stopChatPolling();
+    el.classList.remove('open');
+    if (!keepBackdrop) overlayBackdrop.classList.remove('open');
+    setTimeout(function(){ el.classList.add('hidden'); if (!keepBackdrop) overlayBackdrop.classList.add('hidden'); }, 320);
+    activeOverlayEl = null; overlayOpen = false;
+  }
+  overlayBackdrop.addEventListener('click', function(){ closeActiveOverlay(false); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && overlayOpen) closeActiveOverlay(false); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function(btn){ btn.addEventListener('click', function(){ closeActiveOverlay(false); }); });
+
+  /* ================= Join / Create menu ================= */
+  var jcMenu = document.getElementById('jc-menu'), jcBtn = document.getElementById('join-create-btn');
+  jcBtn.addEventListener('click', function(e){ e.stopPropagation(); jcMenu.classList.toggle('hidden'); });
+  document.addEventListener('click', function(e){
+    if (!jcMenu.classList.contains('hidden') && !jcMenu.contains(e.target) && e.target !== jcBtn) jcMenu.classList.add('hidden');
+  });
+  document.getElementById('jc-join').addEventListener('click', function(){
+    jcMenu.classList.add('hidden');
+    document.getElementById('join-form').reset();
+    document.getElementById('join-form').classList.remove('hidden');
+    document.getElementById('join-success').classList.add('hidden');
+    openOverlayEl(document.getElementById('modal-join'));
+  });
+  document.getElementById('jc-create').addEventListener('click', function(){
+    jcMenu.classList.add('hidden');
+    document.getElementById('create-form').reset();
+    document.getElementById('create-form').classList.remove('hidden');
+    document.getElementById('create-success').classList.add('hidden');
+    openOverlayEl(document.getElementById('modal-create'));
+  });
+  document.getElementById('jc-upload').addEventListener('click', function(){
+    jcMenu.classList.add('hidden');
+    document.getElementById('upload-status').classList.add('hidden');
+    document.getElementById('upload-result').classList.add('hidden');
+    document.getElementById('upload-file').value = '';
+    openOverlayEl(document.getElementById('modal-upload'));
+  });
+  document.getElementById('jc-backoffice').addEventListener('click', function(){
+    // Plain navigation, not an in-page modal like the three options above
+    // it — signing into the back office is a genuine move to a different,
+    // authenticated experience, not an action that happens on this page.
+    // No animated transition between the two: an anonymous visitor and an
+    // authenticated back-office session share no real state to animate
+    // between, so a hard navigation is the honest choice here, not a
+    // missing polish pass.
+    window.location.href = 'e-bos-backoffice.html';
+  });
+  document.getElementById('join-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    document.getElementById('join-form').classList.add('hidden');
+    document.getElementById('join-success').classList.remove('hidden');
+  });
+  document.getElementById('create-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var name = document.getElementById('create-name').value.trim();
+    document.getElementById('create-form').classList.add('hidden');
+    document.getElementById('create-success-text').textContent = name + " noted. We've queued it for setup — add your first item once it's live.";
+    document.getElementById('create-success').classList.remove('hidden');
+  });
+
+  /* ================= Upload guide (client-side preview only) ================= */
+  var dropZone = document.getElementById('drop-zone'), fileInput = document.getElementById('upload-file');
+  var uploadStatus = document.getElementById('upload-status'), uploadResult = document.getElementById('upload-result'), uploadResultText = document.getElementById('upload-result-text');
+  dropZone.addEventListener('dragover', function(e){ e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', function(e){ e.preventDefault(); dropZone.classList.remove('drag'); });
+  dropZone.addEventListener('drop', function(e){ e.preventDefault(); dropZone.classList.remove('drag'); var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) handleGuideFile(f); });
+  fileInput.addEventListener('change', function(){ if (fileInput.files[0]) handleGuideFile(fileInput.files[0]); });
+
+  async function handleGuideFile(file){
+    uploadResult.classList.add('hidden');
+    uploadStatus.classList.remove('hidden');
+    uploadStatus.textContent = 'Reading ' + file.name + '…';
+    try {
+      uploadStatus.textContent = 'Analyzing ' + file.name + '…';
+      var res = await Backend.uploadGuidePreview(file);
+      uploadStatus.classList.add('hidden');
+      if (res.preview){ uploadResultText.textContent = res.preview; uploadResult.classList.remove('hidden'); }
+      else { uploadStatus.classList.remove('hidden'); uploadStatus.textContent = file.name + ' — try a .md or .txt file for a live preview here; other formats aren\u2019t parsed client-side.'; }
+    } catch (err){ uploadStatus.textContent = 'Preview unavailable right now.'; }
+  }
+
+  /* ================= Detail panel ================= */
+  var currentDetailItem = null;
+  var overviewCache = {};
+
+  async function getAIOverview(item){
+    if (overviewCache[item.id]) return overviewCache[item.id];
+    try {
+      var text = await Backend.getProductOverview({ name: item.name, category: item.category, businessName: item.businessName, description: item.description });
+      overviewCache[item.id] = text;
+      return text;
+    } catch (err){ throw err; }
+  }
+
+  function openDetail(item){
+    currentDetailItem = item;
+    var cat = CATEGORIES[item.category];
+    var visualEl = document.getElementById('detail-visual');
+    visualEl.innerHTML = '<span id="detail-icon"></span>';
+    document.getElementById('detail-icon').textContent = item.icon;
+    visualEl.style.background = 'radial-gradient(circle at 35% 30%, ' + lighten(cat.color,0.35) + ', ' + cat.color + ' 55%, ' + darken(cat.color,0.3) + ' 100%)';
+    var media = mediaStateFor(item);
+    if (media && media.el){
+      var tag = media.el.cloneNode(true);
+      if (media.kind === 'video'){ tag.muted = true; tag.play().catch(function(){}); }
+      visualEl.appendChild(tag);
+    }
+    var badge = document.getElementById('detail-category');
+    badge.textContent = cat.label; badge.style.color = cat.color; badge.style.borderColor = cat.color;
+    document.getElementById('detail-name').textContent = item.name;
+    document.getElementById('detail-business').textContent = item.businessName;
+    document.getElementById('detail-sales').textContent = item.sales.toLocaleString();
+    document.getElementById('detail-repeat').textContent = item.repeatCustomers.toLocaleString();
+    document.getElementById('detail-description').textContent = item.description;
+    var overviewEl = document.getElementById('detail-overview');
+    overviewEl.textContent = 'Reading the details…'; overviewEl.classList.add('shimmer');
+    var contactBtn = document.getElementById('detail-contact'), purchaseBtn = document.getElementById('detail-purchase');
+    contactBtn.disabled = false; purchaseBtn.textContent = 'Get this'; purchaseBtn.disabled = false;
+
+    openOverlayEl(document.getElementById('detail-panel'));
+
+    getAIOverview(item).then(function(text){
+      if (currentDetailItem !== item) return;
+      overviewEl.textContent = text; overviewEl.classList.remove('shimmer');
+    }).catch(function(){
+      if (currentDetailItem !== item) return;
+      overviewEl.textContent = item.description; overviewEl.classList.remove('shimmer');
+    });
+  }
+  document.getElementById('detail-contact').addEventListener('click', function(){ if (currentDetailItem) openChatFor(currentDetailItem); });
+  document.getElementById('detail-purchase').addEventListener('click', function(){ this.textContent = 'Added ✓'; this.disabled = true; });
+
+  /* ================= Chat (consumer + AI receptionist + handoff, §4) ================= */
+  var currentChat = null; // { businessId, businessName, conversationId, visitorToken, handledBy }
+  var chatPollTimer = null;
+  var chatMessagesEl = document.getElementById('chat-messages');
+  var chatInputEl = document.getElementById('chat-input');
+  var chatStatusPill = document.getElementById('chat-status-pill');
+
+  function startChatPolling(){
+    stopChatPolling();
+    chatPollTimer = setInterval(function(){
+      if (!currentChat || !currentChat.conversationId) return;
+      Backend.getConversation(currentChat.conversationId, currentChat.visitorToken).then(function(res){
+        renderChatMessages(res.messages);
+        updateHandledByUI(res.conversation.handledBy);
+        updateIdentifyUI(res.conversation.identified);
+      }).catch(function(){});
+    }, 4000);
+  }
+  function stopChatPolling(){ if (chatPollTimer){ clearInterval(chatPollTimer); chatPollTimer = null; } }
+
+  function renderChatMessages(messages){
+    var html = messages.map(function(m){
+      var mine = m.senderType === 'visitor';
+      var who = m.senderType === 'ai' ? 'AI receptionist' : (m.senderType === 'person' ? 'Team member' : 'You');
+      var disclosure = m.isAiDisclosure ? '<div class="ai-disclosure-banner">This is an AI assistant, not a person.</div>' : '';
+      return '<div class="chat-bubble ' + (mine ? 'mine' : 'theirs') + '">' +
+        (mine ? '' : '<div class="bubble-who">' + escapeHtml(who) + (m.senderType === 'ai' ? '<span class="ai-chip">AI</span>' : '') + '</div>') +
+        disclosure + '<div class="bubble-body">' + escapeHtml(m.body) + '</div></div>';
+    }).join('');
+    chatMessagesEl.innerHTML = html;
+    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  }
+  function appendTyping(){
+    var el = document.createElement('div');
+    el.className = 'chat-bubble theirs typing-bubble'; el.id = 'chat-typing-bubble'; el.textContent = '…thinking';
+    chatMessagesEl.appendChild(el); chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  }
+  function removeTyping(){ var el = document.getElementById('chat-typing-bubble'); if (el) el.remove(); }
+
+  function updateHandledByUI(handledBy){
+    currentChat.handledBy = handledBy;
+    if (handledBy === 'ai'){ chatStatusPill.textContent = 'AI receptionist'; chatStatusPill.className = 'chat-pill ai'; }
+    else if (handledBy === 'awaiting_human'){ chatStatusPill.textContent = 'A team member has been notified'; chatStatusPill.className = 'chat-pill waiting'; }
+    else { chatStatusPill.textContent = 'Chatting with a team member'; chatStatusPill.className = 'chat-pill staff'; }
+    document.getElementById('chat-redeem-row').classList.toggle('hidden', handledBy !== 'ai');
+  }
+  function updateIdentifyUI(identified){
+    document.getElementById('chat-identify-row').classList.toggle('hidden', identified);
+    document.getElementById('chat-identify-btn').classList.remove('hidden');
+    document.getElementById('chat-identify-form').classList.add('hidden');
+  }
+
+  function resetChatUI(){
+    chatMessagesEl.innerHTML = '';
+    chatInputEl.value = '';
+    updateHandledByUI('ai');
+    updateIdentifyUI(false);
+    document.getElementById('chat-redeem-form').classList.add('hidden');
+    document.getElementById('chat-redeem-hint').className = 'demo-hint';
+    document.getElementById('chat-redeem-hint').textContent = 'Demo code: DEMO-1234 (works once)';
+  }
+
+  function openChatFor(item){
+    stopChatPolling();
+    document.getElementById('chat-business-name').textContent = item.businessName;
+    resetChatUI();
+    openOverlayEl(document.getElementById('chat-panel'));
+    TokenStore.get('conv:' + item.businessId).then(function(saved){
+      if (saved){
+        currentChat = { businessId: item.businessId, businessName: item.businessName, conversationId: saved.conversationId, visitorToken: saved.visitorToken, handledBy: 'ai' };
+        Backend.getConversation(saved.conversationId, saved.visitorToken).then(function(res){
+          renderChatMessages(res.messages);
+          updateHandledByUI(res.conversation.handledBy);
+          updateIdentifyUI(res.conversation.identified);
+          startChatPolling();
+        }).catch(function(){
+          currentChat = { businessId: item.businessId, businessName: item.businessName, conversationId: null, visitorToken: null, handledBy: 'ai' };
+        });
+      } else {
+        currentChat = { businessId: item.businessId, businessName: item.businessName, conversationId: null, visitorToken: null, handledBy: 'ai' };
+      }
+    });
+  }
+
+  document.getElementById('chat-composer').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var text = chatInputEl.value.trim();
+    if (!text || !currentChat) return;
+    chatInputEl.value = '';
+    try {
+      if (!currentChat.conversationId){
+        var res = await Backend.startConversation({ businessId: currentChat.businessId, message: text });
+        currentChat.conversationId = res.conversation.id;
+        currentChat.visitorToken = res.visitorToken;
+        await TokenStore.set('conv:' + currentChat.businessId, { conversationId: res.conversation.id, visitorToken: res.visitorToken });
+        renderChatMessages([res.message]);
+        updateHandledByUI(res.conversation.handledBy);
+        startChatPolling();
+      } else {
+        var msg = await Backend.postVisitorMessage(currentChat.conversationId, currentChat.visitorToken, text);
+        renderChatMessages([].concat((await Backend.getConversation(currentChat.conversationId, currentChat.visitorToken)).messages));
+      }
+      if (currentChat.handledBy === 'ai'){
+        appendTyping();
+        try {
+          var reply = await Backend.requestAIReply(currentChat.conversationId, currentChat.visitorToken);
+          removeTyping();
+          var all = await Backend.getConversation(currentChat.conversationId, currentChat.visitorToken);
+          renderChatMessages(all.messages);
+        } catch (err){ removeTyping(); /* 409: no new visitor message to answer — fine, ignore */ }
+      }
+    } catch (err){ console.warn('chat send failed', err); }
+  });
+
+  document.getElementById('chat-identify-btn').addEventListener('click', function(){
+    this.classList.add('hidden');
+    document.getElementById('chat-identify-form').classList.remove('hidden');
+  });
+  document.getElementById('chat-identify-submit').addEventListener('click', async function(){
+    if (!currentChat || !currentChat.conversationId) return;
+    var name = document.getElementById('chat-name').value.trim();
+    var email = document.getElementById('chat-email').value.trim();
+    if (!name || !email) return;
+    try {
+      await Backend.identifyVisitor(currentChat.conversationId, currentChat.visitorToken, { name: name, email: email });
+      updateIdentifyUI(true);
+    } catch (err){
+      console.warn('identify failed', err);
+      // Previously silent on failure — the mock rarely failed, but a
+      // real network request genuinely can (backend unreachable, a
+      // stale/invalid visitor token). Give the same class of visible
+      // feedback the adjacent redeemToken handler already gives, rather
+      // than letting the identify form just sit there with no
+      // indication anything went wrong.
+      var identifyForm = document.getElementById('chat-identify-form');
+      var existingHint = identifyForm.querySelector('.identify-error-hint');
+      if (!existingHint){
+        existingHint = document.createElement('div');
+        existingHint.className = 'identify-error-hint';
+        existingHint.style.cssText = 'font-size:12px;color:#E8823C;margin-top:6px;';
+        identifyForm.appendChild(existingHint);
+      }
+      existingHint.textContent = "Couldn't save that just now — please try again.";
+    }
+  });
+
+  document.getElementById('chat-redeem-toggle').addEventListener('click', function(){
+    document.getElementById('chat-redeem-form').classList.toggle('hidden');
+  });
+  document.getElementById('chat-redeem-submit').addEventListener('click', async function(){
+    if (!currentChat || !currentChat.conversationId) return;
+    var code = document.getElementById('chat-redeem-input').value.trim();
+    var hint = document.getElementById('chat-redeem-hint');
+    if (!code) return;
+    try {
+      await Backend.redeemToken(currentChat.conversationId, currentChat.visitorToken, code);
+      updateHandledByUI('awaiting_human');
+      hint.textContent = "You're through to a team member — they'll join shortly.";
+      hint.className = 'redeem-ok';
+    } catch (err){
+      var copy = {
+        not_identified: 'Please share your name and email first.',
+        token_not_found: "That code doesn't look right.",
+        token_already_redeemed: 'That code has already been used.',
+        token_belongs_to_different_consumer: "That code doesn't look right.",
+        conversation_not_found: 'Something went wrong — try reopening the chat.'
+      };
+      hint.textContent = copy[err.reason] || 'Something went wrong.';
+      hint.className = 'redeem-error';
+    }
+  });
+
+  /* ================= Tooltip ================= */
+  var tooltipEl = document.getElementById('tooltip');
+  function showTooltip(item, clientX, clientY){
+    document.getElementById('tt-dot').style.background = CATEGORIES[item.category].color;
+    document.getElementById('tt-name').textContent = item.name;
+    document.getElementById('tt-business').textContent = item.businessName;
+    document.getElementById('tt-sales').textContent = item.sales.toLocaleString() + ' sales';
+    document.getElementById('tt-repeat').textContent = item.repeatCustomers.toLocaleString() + ' repeat';
+    document.getElementById('tt-desc').textContent = item.description;
+    tooltipEl.classList.remove('hidden');
+    var pad = 16, w = 236, h = 140, left = clientX + 18, top = clientY + 18;
+    if (left + w > window.innerWidth - pad) left = clientX - w - 18;
+    if (top + h > window.innerHeight - pad) top = clientY - h - 18;
+    tooltipEl.style.left = left + 'px'; tooltipEl.style.top = top + 'px';
+  }
+  function hideTooltip(){ tooltipEl.classList.add('hidden'); }
+
+  /* ================= Pointer / wheel / touch input ================= */
+  canvas.addEventListener('mousemove', function(e){
+    if (overlayOpen) return;
+    var rect = canvas.getBoundingClientRect();
+    var hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    var item = hit ? catalogById[hit.itemId] : null;
+    canvas.style.cursor = item ? 'pointer' : 'default';
+    if (item) showTooltip(item, e.clientX, e.clientY); else hideTooltip();
+  });
+  canvas.addEventListener('mouseleave', hideTooltip);
+  canvas.addEventListener('click', function(e){
+    if (overlayOpen) return;
+    var rect = canvas.getBoundingClientRect();
+    var hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    var item = hit ? catalogById[hit.itemId] : null;
+    if (item){ hideTooltip(); openDetail(item); }
+  });
+  canvas.addEventListener('wheel', function(e){
+    if (overlayOpen) return;
+    e.preventDefault(); lastInputTime = performance.now();
+    targetVelocity = clamp(targetVelocity + (e.deltaY < 0 ? 1 : -1) * 0.35, 0.25, 5);
+  }, { passive:false });
+
+  var touchState = null;
+  canvas.addEventListener('touchstart', function(e){
+    if (overlayOpen) return;
+    var t = e.touches[0];
+    touchState = { startX:t.clientX, startY:t.clientY, lastY:t.clientY, startTime:performance.now(), accumUp:0, accumDown:0, moved:false };
+  }, { passive:true });
+  canvas.addEventListener('touchmove', function(e){
+    if (overlayOpen || !touchState) return;
+    e.preventDefault();
+    var t = e.touches[0], dy = t.clientY - touchState.lastY;
+    touchState.lastY = t.clientY;
+    if (Math.abs(t.clientX - touchState.startX) + Math.abs(t.clientY - touchState.startY) > 10) touchState.moved = true;
+    lastInputTime = performance.now();
+    if (dy < 0){ touchState.accumUp -= dy; touchState.accumDown = 0; } else { touchState.accumDown += dy; touchState.accumUp = 0; }
+    var STEP = 34;
+    while (touchState.accumUp > STEP){ targetVelocity = clamp(targetVelocity + 0.35, 0.25, 5); touchState.accumUp -= STEP; }
+    while (touchState.accumDown > STEP){ targetVelocity = clamp(targetVelocity - 0.35, 0.25, 5); touchState.accumDown -= STEP; }
+  }, { passive:false });
+  canvas.addEventListener('touchend', function(){
+    if (overlayOpen || !touchState) return;
+    var duration = performance.now() - touchState.startTime;
+    if (!touchState.moved && duration < 300){
+      var rect = canvas.getBoundingClientRect();
+      var hit = hitTest(touchState.startX - rect.left, touchState.startY - rect.top);
+      var item = hit ? catalogById[hit.itemId] : null;
+      if (item) openDetail(item);
+    }
+    touchState = null;
+  });
+
+  /* ================= Init ================= */
+  resizeCanvas();
+  Backend.fetchSnapshot().then(function(items){
+    for (var i = 0; i < items.length; i++) catalogById[items[i].id] = items[i];
+    catalogList = items.slice();
+
+    var businessList = document.getElementById('business-list');
+    var uniqueBusinesses = Array.from(new Set(catalogList.map(function(p){ return p.businessName; })));
+    businessList.innerHTML = uniqueBusinesses.map(function(b){ return '<option value="' + escapeHtml(b) + '"></option>'; }).join('');
+
+    frontier = new Array(BUCKETS).fill(scrollY - canvasHeight * 0.6);
+    for (var k = 0; k < 25; k++) maintainBuffer();
+    requestAnimationFrame(tick);
+    startPolling();
+  }).catch(function(err){
+    // No error UI existed in this file before this integration, because
+    // the mock version of fetchSnapshot() could never actually fail —
+    // it was a local setTimeout, not a network call. Now that it's real,
+    // this is the single most likely first failure a Termux setup will
+    // hit (backend not started yet, wrong BACKEND_BASE_URL, CORS not
+    // configured) — silently leaving a blank page here would be a much
+    // worse debugging experience than one visible message.
+    console.error('Failed to load the product stream from the backend:', err);
+    document.body.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:24px;' +
+      'text-align:center;font-family:sans-serif;color:#EDEFF3;background:#0A0D12;">' +
+      '<div><p style="font-size:16px;font-weight:700;margin-bottom:8px;">Could not reach the e-BOS backend</p>' +
+      '<p style="font-size:13px;color:#8A93A3;max-width:420px;">Checked BACKEND_BASE_URL = "' + escapeHtml(BACKEND_BASE_URL || '(same origin)') +
+      '". Confirm the backend is running and reachable, then reload this page. See SETUP.md.</p></div></div>';
+  });
+})();
+</script>
+</body>
+</html>
