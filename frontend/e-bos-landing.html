@@ -411,6 +411,37 @@
   };
 
 
+  /* ================= Small utilities =================
+     RESTORED. An earlier edit that removed the mock demo-catalog data
+     deleted a line range that ALSO contained these shared helpers (the
+     range was chosen by line number, not by checking what else sat
+     inside it). The page still calls clamp/escapeHtml/uid/lighten/
+     darken/reducedMotion in many places, so with these gone the script
+     threw "ReferenceError: reducedMotion is not defined" at the stream
+     engine's first line and stopped, leaving the Join/Create button and
+     most of the page unwired. Syntax checks (node --check) could not
+     catch this: they verify grammar, not that every name is declared.
+     slugify/clone are intentionally NOT restored — only the mock
+     catalog used them. */
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+  var uidCounter = 0;
+  function uid(){ return 'c' + (uidCounter++) + '-' + Math.random().toString(36).slice(2,8); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(ch){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch];
+    });
+  }
+  function hexToRgb(hex){ var n = parseInt(hex.slice(1), 16); return [ (n >> 16) & 255, (n >> 8) & 255, n & 255 ]; }
+  function mix(hex, target, amt){
+    var rgb = hexToRgb(hex);
+    function m(a, t){ return Math.round(a + (t - a) * amt); }
+    return 'rgb(' + m(rgb[0], target[0]) + ',' + m(rgb[1], target[1]) + ',' + m(rgb[2], target[2]) + ')';
+  }
+  function lighten(hex, amt){ return mix(hex, [255,255,255], amt); }
+  function darken(hex, amt){ return mix(hex, [0,0,0], amt); }
+
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   /* ================= Persistent token store (defensive) =================
      The real spec says "store it in localStorage, not a cookie." Artifacts
      in this environment can't use localStorage/sessionStorage, so this

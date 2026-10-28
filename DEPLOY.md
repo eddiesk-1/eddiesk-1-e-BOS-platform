@@ -121,3 +121,25 @@ reasoning behind every decision here is sound and specific, not
 generic advice — but "reasoned through carefully" and "watched it
 work" are different claims, and this document is only making the
 first one. The first real build and deploy is the actual test.
+
+## Before every deploy: run the smoke test
+
+```bash
+node tools/smoke-test.js frontend/e-bos-landing.html
+node tools/smoke-test.js frontend/e-bos-backoffice.html signed-in
+```
+
+Both should print `ReferenceErrors: 0`. This exists because of a real
+incident: the first Render deploy shipped a landing page whose
+Join/Create button did nothing. An earlier edit had deleted a block of
+code by line number, and that block also held shared helpers
+(`clamp`, `escapeHtml`, `lighten`, `reducedMotion`, ...). The script
+died on its first line with `ReferenceError: reducedMotion is not
+defined`, before it registered a single event listener. Syntax checks
+passed the whole time — they verify grammar, not that every name is
+declared — so the bug was only found by opening the live page.
+
+The smoke test is not a browser. It proves every name resolves and
+every handler can start; it does not prove the layout looks right or
+that a real tap does what you intend. Still open that page yourself
+after each deploy.
