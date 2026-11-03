@@ -1402,12 +1402,29 @@
     // configured) — silently leaving a blank page here would be a much
     // worse debugging experience than one visible message.
     console.error('Failed to load the product stream from the backend:', err);
+    // Say what actually happened. An earlier version of this message
+    // always read "Could not reach the e-BOS backend", even when the
+    // backend had answered with an HTTP 500 (e.g. a database login
+    // failure) or when the page's own startup code threw — which sent
+    // debugging in the wrong direction. This catch sees all three, so
+    // it tells them apart.
+    var title, detail;
+    if (err && err.status){
+      title = 'The backend answered with an error';
+      detail = 'HTTP ' + err.status + (err.code ? ' (' + err.code + ')' : '') + ': ' + (err.message || 'no message') +
+        '. The server is up; open its logs to see the real cause.';
+    } else if (err instanceof TypeError && /failed to fetch|networkerror|load failed|network request failed/i.test(String(err.message))){
+      title = 'Could not reach the e-BOS backend';
+      detail = 'The request got no response. If the service is on a free plan it may be waking up — wait a minute and reload. Checked BACKEND_BASE_URL = ' + (BACKEND_BASE_URL || '(same origin)') + '.';
+    } else {
+      title = 'The page hit an unexpected error while starting';
+      detail = (err && err.message ? err.message : String(err)) + ' — the backend may be fine; this is an error in the page itself.';
+    }
     document.body.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:24px;' +
       'text-align:center;font-family:sans-serif;color:#EDEFF3;background:#0A0D12;">' +
-      '<div><p style="font-size:16px;font-weight:700;margin-bottom:8px;">Could not reach the e-BOS backend</p>' +
-      '<p style="font-size:13px;color:#8A93A3;max-width:420px;">Checked BACKEND_BASE_URL = "' + escapeHtml(BACKEND_BASE_URL || '(same origin)') +
-      '". Confirm the backend is running and reachable, then reload this page. See SETUP.md.</p></div></div>';
+      '<div><p style="font-size:16px;font-weight:700;margin-bottom:8px;">' + escapeHtml(title) + '</p>' +
+      '<p style="font-size:13px;color:#8A93A3;max-width:420px;">' + escapeHtml(detail) + '</p></div></div>';
   });
 })();
 </script>
