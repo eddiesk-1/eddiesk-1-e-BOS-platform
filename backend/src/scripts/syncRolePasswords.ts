@@ -62,7 +62,8 @@ async function main(): Promise<void> {
       }
       const password = passwordFrom(raw, target.role, target.envVar);
       // target.role comes from the constant list above, never from input.
-      await client.query(`ALTER ROLE ${target.role} PASSWORD ${client.escapeLiteral(password)}`);
+      const quoted = await client.query('SELECT quote_literal($1) AS value', [password]);
+	await client.query(`ALTER ROLE ${target.role} PASSWORD ${quoted.rows[0].value}`);
       console.log(
         `[sync-role-passwords] ${target.role}: password set from ${target.envVar}` +
           (password === DEFAULT_PASSWORD ? ' — WARNING: this is the publicly known default password' : ''),
