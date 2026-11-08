@@ -1,4 +1,5 @@
 import { Pool, type PoolClient } from 'pg';
+import { pgSsl } from './ssl.js';
 
 /**
  * The app process connects to Postgres as app_login — a role with NO table
@@ -26,6 +27,7 @@ if (!process.env.APP_DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.APP_DATABASE_URL,
+  ssl: pgSsl(),
   max: 10,
 });
 

@@ -68,11 +68,50 @@ dashboard instead of a local file:
 | Variable | Where it comes from |
 |---|---|
 | `DATABASE_URL` | Your managed Postgres provider's connection string (the superuser one, used only for running migrations) |
-| `APP_DATABASE_URL`, `PUBLIC_DATABASE_URL` | Set these to real, unique passwords for `app_login`/`app_public_login` — migration 004/008 create these roles with `change_me_in_production` literally in their name for a reason; a real deployment must not keep that default |
+| `APP_DATABASE_URL`, `PUBLIC_DATABASE_URL` | Same host and database name as `DATABASE_URL` (use the provider's INTERNAL hostname), but connecting as `app_login` / `app_public_login` with passwords you generate yourself. The deploy script sets those two roles' passwords from these URLs on every start (see below) — you do not set them by hand. URL-encode special characters in the password. |
 | `ANTHROPIC_API_KEY` | Your real Anthropic key |
 | `JWT_SECRET`, `CREDENTIAL_ENCRYPTION_KEY` | Generate REAL random values for a public deployment — `setup.sh` generates these for you locally; for a platform deploy, generate them yourself: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`, once per variable. Reusing the value this doc or any example shows would mean anyone reading this doc could forge tokens or decrypt stored provider keys — these MUST be unique, private values you generate yourself, never copied from documentation. |
 | `ALLOWED_ORIGIN` | Only needed if your frontend ends up on a different origin than the backend — see below |
 | `PORT` | Most platforms set this for you automatically; only set it yourself on a raw VPS |
+
+## Database connections: TLS and role passwords
+
+Two problems hit the first real deployment. Both were reproduced against
+a real Postgres before being fixed, and both are fixed in the code.
+
+**TLS.** Managed Postgres hosts can refuse connections that are not
+encrypted. A pool created with no `ssl` option then fails on its first
+query, while the service itself boots and `/health` looks fine — the
+symptom was a landing page whose product stream would not load. All
+three connection pools (`db.ts`, `publicDb.ts`, the seed script) now go
+through one helper, `src/lib/ssl.ts`:
+
+| Setting | Effect |
+|---|---|
+| `DATABASE_SSL` unset | TLS **on** when `NODE_ENV=production` (Docker and most hosts), off otherwise — so the local Termux setup is untouched |
+| `DATABASE_SSL=false` | Force TLS off (e.g. a plain local database inside a production container) |
+| `DATABASE_SSL=true` | Force TLS on |
+| `DATABASE_SSL_VERIFY=true` | Also verify the server's certificate |
+
+By default the connection is **encrypted but the server's certificate is
+not verified**, because managed providers often use certificates that do
+not chain to a public CA. That stops eavesdropping but not an active
+man-in-the-middle on the network path. Using the provider's INTERNAL
+hostname (traffic stays on their private network) keeps that exposure
+small. If your database URLs use a public hostname such as
+`xxxx.oregon-postgres.render.com`, switch them to the internal one.
+
+**Role passwords.** Migrations 004 and 008 create the two login roles
+with the fixed password `change_me_in_production`. Nothing used to apply
+the passwords an operator put in `APP_DATABASE_URL` /
+`PUBLIC_DATABASE_URL`, so on a fresh database every request through
+those pools failed with "password authentication failed" — again while
+the service booted normally. The `deploy` script now runs
+`sync-roles` between migrations and server start, which sets both roles'
+passwords from those two URLs. It is idempotent, never prints a
+password, and refuses a URL that connects as the wrong user. Set
+`SKIP_ROLE_PASSWORD_SYNC=true` if your admin database user cannot
+`ALTER ROLE` and you manage those passwords yourself.
 
 ## CORS — read this if anything looks broken after deploying
 
@@ -110,36 +149,40 @@ independently verified character-by-character, not just assumed correct
 from reading it. Every file path the Dockerfile references was
 confirmed to exist in the real project structure.
 
-**NOT checked, and stated plainly rather than implied**: this Dockerfile
-has never actually been built. Nothing in this deployment path — the
-container, the CORS behavior under a real cross-origin request, the
-static file serving actually returning the right files to a browser —
-has been run. This environment had no access to Docker, no access to
-`npm install` (blocked at the network level while this was written),
-and no access to any real deployment platform to test against. The
-reasoning behind every decision here is sound and specific, not
-generic advice — but "reasoned through carefully" and "watched it
-work" are different claims, and this document is only making the
-first one. The first real build and deploy is the actual test.
+**Run for real since this was first written**: the Dockerfile was built
+and run by Render; all 18 migrations were applied to a real Postgres 16
+with pgvector; the whole project type-checks and builds with its real
+dependencies; and the TLS and role-password failures above were
+reproduced against a database configured to refuse unencrypted
+connections, then shown fixed.
 
-## Before every deploy: run the smoke test
+**Still not verified, stated plainly**: behaviour on Render's own
+Postgres 18 beyond what its logs showed, certificate verification
+(`DATABASE_SSL_VERIFY=true`) against a real provider certificate, and
+anything that needs a live Anthropic or embeddings-provider key.
+
+## Before every deploy: run the checks
 
 ```bash
+cd backend && npm install && npx tsc --noEmit && npm run build && cd ..
 node tools/smoke-test.js frontend/e-bos-landing.html
 node tools/smoke-test.js frontend/e-bos-backoffice.html signed-in
 ```
 
-Both should print `ReferenceErrors: 0`. This exists because of a real
-incident: the first Render deploy shipped a landing page whose
-Join/Create button did nothing. An earlier edit had deleted a block of
-code by line number, and that block also held shared helpers
-(`clamp`, `escapeHtml`, `lighten`, `reducedMotion`, ...). The script
-died on its first line with `ReferenceError: reducedMotion is not
-defined`, before it registered a single event listener. Syntax checks
-passed the whole time — they verify grammar, not that every name is
-declared — so the bug was only found by opening the live page.
+The first line type-checks the whole backend and runs the exact build
+Render runs. Both smoke tests should print `ReferenceErrors: 0`.
 
-The smoke test is not a browser. It proves every name resolves and
-every handler can start; it does not prove the layout looks right or
-that a real tap does what you intend. Still open that page yourself
-after each deploy.
+The smoke test exists because of a real incident: the first Render
+deploy shipped a landing page whose Join/Create button did nothing. An
+earlier edit had deleted a block of code by line number, and that block
+also held shared helpers (`clamp`, `escapeHtml`, `lighten`,
+`reducedMotion`, ...). The script died on its first line with
+`ReferenceError: reducedMotion is not defined`, before it registered a
+single event listener. Syntax checks passed the whole time — they verify
+grammar, not that every name is declared — so the bug was only found by
+opening the live page.
+
+The smoke test is not a browser. It proves every name resolves and every
+handler can start; it does not prove the layout looks right or that a
+real tap does what you intend. Still open the live page yourself after
+each deploy.

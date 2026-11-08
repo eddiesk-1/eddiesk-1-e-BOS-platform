@@ -11,9 +11,10 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc && cp src/package.json dist/package.json && mkdir -p dist/public && cp ../frontend/*.html dist/public/",
     "start": "node dist/server.js",
-    "deploy": "npm run migrate:up && npm run start",
+    "deploy": "npm run migrate:up && npm run sync-roles && npm run start",
     "seed": "tsx src/scripts/seed.ts",
-    "test": "tsx src/test/run.ts"
+    "test": "tsx src/test/run.ts",
+    "sync-roles": "node dist/scripts/syncRolePasswords.js"
   },
   "keywords": [],
   "author": "",

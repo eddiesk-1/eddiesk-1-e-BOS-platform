@@ -1,4 +1,5 @@
 import { Pool, type PoolClient } from 'pg';
+import { pgSsl } from './ssl.js';
 
 /**
  * A second, separate connection pool from the one in lib/db.ts —
@@ -33,6 +34,7 @@ if (!process.env.PUBLIC_DATABASE_URL) {
 
 export const publicPool = new Pool({
   connectionString: process.env.PUBLIC_DATABASE_URL,
+  ssl: pgSsl(),
   max: 10,
 });
 
