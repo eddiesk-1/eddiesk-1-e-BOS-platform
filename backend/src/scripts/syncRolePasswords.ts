@@ -32,11 +32,20 @@ function passwordFrom(raw: string, expectedUser: string, envVar: string): string
   try {
     url = new URL(raw);
   } catch {
-    throw new Error(`${envVar} is not a valid connection URL`);
+    throw new Error(`${envVar} is not a valid connection URL (expected postgres://USER:PASSWORD@HOST/DATABASE)`);
   }
   const user = decodeURIComponent(url.username);
   if (user !== expectedUser) {
-    throw new Error(`${envVar} must connect as "${expectedUser}" (it connects as "${user || '(none)'}")`);
+    // NEVER print `user` here. If the ":" between the user and the password
+    // is missing, the parsed "user" IS the password, and an earlier version
+    // of this message echoed it straight into the deploy logs.
+    const missingColon = user.startsWith(expectedUser) && !url.password;
+    throw new Error(
+      `${envVar} must connect as "${expectedUser}", but the user part of the URL does not match it.` +
+        (missingColon
+          ? ' It starts with that name but has extra characters and no password — the ":" between the user and the password is probably missing.'
+          : ''),
+    );
   }
   const password = decodeURIComponent(url.password);
   if (!password) throw new Error(`${envVar} contains no password`);
@@ -51,24 +60,37 @@ async function main(): Promise<void> {
   const adminUrl = process.env.DATABASE_URL;
   if (!adminUrl) throw new Error('DATABASE_URL is not set');
 
+  // Validate every URL BEFORE touching any role, so one bad variable can
+  // never leave the roles half-updated.
+  const planned: Array<{ role: string; envVar: string; password: string }> = [];
+  for (const target of TARGETS) {
+    const raw = process.env[target.envVar];
+    if (!raw) {
+      console.warn(`[sync-role-passwords] ${target.envVar} is not set; leaving ${target.role} unchanged`);
+      continue;
+    }
+    planned.push({ role: target.role, envVar: target.envVar, password: passwordFrom(raw, target.role, target.envVar) });
+  }
+
   const client = new Client({ connectionString: adminUrl, ssl: pgSsl() });
   await client.connect();
   try {
-    for (const target of TARGETS) {
-      const raw = process.env[target.envVar];
-      if (!raw) {
-        console.warn(`[sync-role-passwords] ${target.envVar} is not set; leaving ${target.role} unchanged`);
-        continue;
-      }
-      const password = passwordFrom(raw, target.role, target.envVar);
-      // target.role comes from the constant list above, never from input.
-      const quoted = await client.query('SELECT quote_literal($1) AS value', [password]);
-	await client.query(`ALTER ROLE ${target.role} PASSWORD ${quoted.rows[0].value}`);
+    // One transaction: both roles change, or neither does.
+    await client.query('BEGIN');
+    for (const item of planned) {
+      // item.role comes from the constant list above, never from input.
+      await client.query(`ALTER ROLE ${item.role} PASSWORD ${client.escapeLiteral(item.password)}`);
+    }
+    await client.query('COMMIT');
+    for (const item of planned) {
       console.log(
-        `[sync-role-passwords] ${target.role}: password set from ${target.envVar}` +
-          (password === DEFAULT_PASSWORD ? ' — WARNING: this is the publicly known default password' : ''),
+        `[sync-role-passwords] ${item.role}: password set from ${item.envVar}` +
+          (item.password === DEFAULT_PASSWORD ? ' — WARNING: this is the publicly known default password' : ''),
       );
     }
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
   } finally {
     await client.end();
   }

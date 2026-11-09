@@ -113,6 +113,26 @@ password, and refuses a URL that connects as the wrong user. Set
 `SKIP_ROLE_PASSWORD_SYNC=true` if your admin database user cannot
 `ALTER ROLE` and you manage those passwords yourself.
 
+## Reading a failed deploy
+
+`npm run deploy` runs three steps joined by `&&`: migrations, then
+`sync-roles`, then the server. If any step fails, the server never
+starts, and Render keeps serving the PREVIOUS version while the new one
+fails. Two signs you are in this situation: the log shows
+`Port scan timeout reached, no open ports detected` (the new instance
+never bound a port), and the live site still behaves like the old code.
+Look for the last line starting `[sync-role-passwords] failed:` or an
+error from `node-pg-migrate`.
+
+The most common cause is a malformed database URL. The shape must be
+exactly `postgres://ROLE:PASSWORD@HOST/DATABASE` — the `:` between the
+role name and the password is required. Without it the password becomes
+part of the username, which is what the first real deploy hit.
+
+If a password ever appears in a log or a chat, treat it as exposed:
+generate a new one and put it in the variable. The next deploy applies
+it to the role automatically.
+
 ## CORS — read this if anything looks broken after deploying
 
 **The backend now serves the frontend itself** (see `server.ts`'s
