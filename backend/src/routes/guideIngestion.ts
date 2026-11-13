@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { withDb } from '../plugins/tenantContext.js';
 import { encryptSecret, decryptSecret } from '../lib/encryption.js';
 import { randomUUID } from 'node:crypto';
+import { EmbeddingDimensionError, callEmbeddingsProvider, normalizeEmbeddingDimension } from '../lib/embeddings.js';
 
 /**
  * The pipeline knowledge_chunks (migrations/003_ledger_and_knowledge.js)
@@ -21,7 +22,7 @@ import { randomUUID } from 'node:crypto';
  * credentials are BUSINESS-scoped configuration an owner supplies (see
  * migrations/018_business_integrations.js), not a single global
  * .env-level key the way ANTHROPIC_API_KEY is for the rest of this
- * service. callEmbeddingsProvider() below is the one function that
+ * service. callEmbeddingsProvider() (now in lib/embeddings.ts) is the one function that
  * knows how to actually talk to a given provider's API shape — adding a
  * new provider is a change there, not a schema change.
  *
@@ -111,45 +112,6 @@ export function chunkGuideText(text: string): string[] {
  * (vector(1536) is a fixed-width column), which is a real constraint
  * worth knowing before adding a third provider casually.
  */
-async function callEmbeddingsProvider(
-  provider: string,
-  apiKey: string,
-  texts: string[],
-): Promise<number[][]> {
-  if (provider === 'openai') {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: texts }),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`OpenAI embeddings API error ${response.status}: ${body.slice(0, 300)}`);
-    }
-    const data = (await response.json()) as { data: Array<{ embedding: number[] }> };
-    return data.data.map((d) => d.embedding);
-  }
-
-  if (provider === 'voyage') {
-    const response = await fetch('https://api.voyageai.com/v1/embeddings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: 'voyage-2', input: texts }),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`Voyage AI embeddings API error ${response.status}: ${body.slice(0, 300)}`);
-    }
-    const data = (await response.json()) as { data: Array<{ embedding: number[] }> };
-    return data.data.map((d) => d.embedding);
-  }
-
-  throw new Error(
-    `Unknown embeddings provider "${provider}". Supported: "openai", "voyage". ` +
-      'To add another, extend callEmbeddingsProvider() in this file with that provider\'s real API shape — ' +
-      'this is a real per-provider integration, not a generic template.',
-  );
-}
 
 export default async function guideIngestionRoutes(fastify: FastifyInstance) {
   /**
@@ -265,8 +227,15 @@ export default async function guideIngestionRoutes(fastify: FastifyInstance) {
           iv: integration.encryption_iv,
           authTag: integration.encryption_auth_tag,
         });
-        embeddings = await callEmbeddingsProvider(integration.provider, apiKey, chunks);
+        embeddings = (await callEmbeddingsProvider(integration.provider, apiKey, chunks)).map((v) =>
+          normalizeEmbeddingDimension(v),
+        );
       } catch (err) {
+        if (err instanceof EmbeddingDimensionError) {
+          request.log.warn({ message: err.message }, 'Guide ingestion: embedding dimension not supported');
+          reply.code(502).send({ error: 'embeddings_dimension_mismatch', message: err.message });
+          return;
+        }
         request.log.warn({ err }, 'Guide ingestion embeddings call failed');
         reply.code(502).send({
           error: 'embeddings_provider_error',

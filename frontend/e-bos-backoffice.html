@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#E8EDF7" />
+<script>
+/* Apply a saved light/dark choice before first paint (no flash). */
+(function(){ try { var t = localStorage.getItem('ebos-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+</script>
 <title>e-BOS — Back Office</title>
 <style>
   :root{
@@ -288,7 +294,264 @@
   .widget-option .add-btn{ background:var(--accent); border:none; color:#fff; border-radius:100px; padding:5px 12px; font-size:0.78rem; cursor:pointer; }
   .widget-option .add-btn:disabled{ background:rgba(255,255,255,0.08); color:var(--text-faint); cursor:not-allowed; }
   .widget-option .locked-note{ font-size:0.7rem; color:var(--text-faint); }
+
+  /* --- 0.0.6 --- */
+  .widget-card .widget-head .widget-summary{ flex:1; margin:0 14px; font-size:0.8rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #login-screen a{ color:var(--text-muted); font-size:0.82rem; }
+  #login-screen .hint{ font-size:0.8rem; color:var(--text-muted); margin-top:10px; line-height:1.45; }
+  #login-company-list{ display:flex; flex-direction:column; gap:8px; }
+  #notif-btn{ position:relative; }
+  .notif-count{ position:absolute; top:-7px; right:-7px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--bad); color:#fff; font-size:0.68rem; line-height:18px; text-align:center; }
+  #notif-panel{ position:fixed; top:64px; right:16px; width:min(380px, calc(100vw - 32px)); max-height:70vh; overflow-y:auto; z-index:60; padding:12px; }
+  #notif-panel .notif-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-weight:600; }
+  .notif-item{ padding:10px 8px; border-bottom:1px solid var(--glass-border); cursor:pointer; font-size:0.86rem; line-height:1.4; }
+  .notif-item.unread{ border-left:3px solid var(--accent); padding-left:10px; }
+  .notif-item .when{ font-size:0.72rem; color:var(--text-muted); }
+  .conv-item.waiting{ border-left:3px solid #FFB84D; }
+  .inline-editor{ background:rgba(255,255,255,0.03); }
+  .inline-editor td{ padding:14px; }
+  .check-row{ display:flex; align-items:center; gap:8px; margin:10px 0; font-size:0.88rem; }
+  .check-row input{ width:auto; }
+  .btn-danger{ border-color:var(--bad); color:#FFB3B0; }
+  @media (max-width:640px){ #whoami-topbar, #logout-all-btn{ display:none; } }
 </style>
+<style id="liquid-glass">
+/* =====================================================================
+   LIQUID GLASS DESIGN SYSTEM (0.0.6)
+   Floating, pill-shaped, translucent surfaces in the spirit of the iOS
+   Control Center / Home Screen: a soft "wallpaper" behind, glass on top.
+   White-themed by default, with a dark mode that follows the device
+   (prefers-color-scheme) unless the person picks one with the sun/moon
+   button (remembered in localStorage as "ebos-theme").
+   Everything below is tokens; components only reference var(--…).
+   ===================================================================== */
+:root{
+  color-scheme: light;
+  --bg:#E8EDF7; --bg-panel:rgba(255,255,255,0.58); --bg-field:rgba(255,255,255,0.58);
+  --line:rgba(14,19,32,0.10); --line-strong:rgba(14,19,32,0.17);
+  --text:#0E1320; --text-muted:rgba(14,19,32,0.70); --text-faint:rgba(14,19,32,0.60);
+  --accent:#0B66DB; --accent-fill:#0B66DB; --accent-top:#3C90F5; --accent-glow:rgba(11,102,219,0.32);
+  --good:#1E9A52; --warn:#C9680B; --bad:#E5484D;
+  --ink-bad:#B42318; --ink-good:#17713C; --ink-warn:#9A4E06; --ink-ai:#5B3FC4; --ink-wait:#855400;
+  --glass-fill:rgba(255,255,255,0.46); --glass-fill-raised:rgba(255,255,255,0.64);
+  --glass-border:rgba(255,255,255,0.80); --glass-edge:rgba(20,30,60,0.10);
+  --glass-shadow:0 18px 50px rgba(32,44,90,0.16), 0 3px 10px rgba(32,44,90,0.07);
+  --glass-hi:inset 0 1.5px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.40);
+  --sheen:rgba(255,255,255,0.52);
+  --glass-blur:30px; --glass-blur-heavy:44px;
+  --field:rgba(255,255,255,0.66); --field-focus:rgba(255,255,255,0.94); --hover:rgba(14,19,32,0.06);
+  --solid:#F4F7FC;
+  --wall-1:#9CC4FF; --wall-2:#D2B4FF; --wall-3:#FFD2B4; --wall-opacity:0.9;
+  --scrim:rgba(222,230,246,0.45); --fade:rgba(232,237,247,0.90);
+  --canvas-ring:#0E1320; --canvas-shadow:rgba(32,44,90,0.30);
+  --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230E1320' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  --radius:28px; --radius-sm:18px;
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#07090F; --bg-panel:rgba(30,34,50,0.58); --bg-field:rgba(255,255,255,0.08);
+  --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.19);
+  --text:#F3F5FA; --text-muted:rgba(243,245,250,0.72); --text-faint:rgba(243,245,250,0.50);
+  --accent:#58A8FF; --accent-fill:#1F6FE5; --accent-top:#4B9BFF; --accent-glow:rgba(88,168,255,0.40);
+  --good:#4FB36A; --warn:#F0924A; --bad:#FF6B67;
+  --ink-bad:#FFB3B0; --ink-good:#8FD69B; --ink-warn:#F5B27A; --ink-ai:#C9BDF5; --ink-wait:#E9CE7C;
+  --glass-fill:rgba(34,39,58,0.44); --glass-fill-raised:rgba(48,55,80,0.54);
+  --glass-border:rgba(255,255,255,0.18); --glass-edge:rgba(0,0,0,0.40);
+  --glass-shadow:0 20px 56px rgba(0,0,0,0.55), 0 3px 10px rgba(0,0,0,0.30);
+  --glass-hi:inset 0 1.5px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(255,255,255,0.05);
+  --sheen:rgba(255,255,255,0.12);
+  --field:rgba(255,255,255,0.09); --field-focus:rgba(255,255,255,0.15); --hover:rgba(255,255,255,0.08);
+  --solid:#161A27;
+  --wall-1:#2548B8; --wall-2:#6B33C8; --wall-3:#0E8F80; --wall-opacity:0.55;
+  --scrim:rgba(0,0,0,0.52); --fade:rgba(7,9,15,0.90);
+  --canvas-ring:#F3F5FA; --canvas-shadow:rgba(0,0,0,0.55);
+  --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F3F5FA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#07090F; --bg-panel:rgba(30,34,50,0.58); --bg-field:rgba(255,255,255,0.08);
+    --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.19);
+    --text:#F3F5FA; --text-muted:rgba(243,245,250,0.72); --text-faint:rgba(243,245,250,0.50);
+    --accent:#58A8FF; --accent-fill:#1F6FE5; --accent-top:#4B9BFF; --accent-glow:rgba(88,168,255,0.40);
+    --good:#4FB36A; --warn:#F0924A; --bad:#FF6B67;
+    --ink-bad:#FFB3B0; --ink-good:#8FD69B; --ink-warn:#F5B27A; --ink-ai:#C9BDF5; --ink-wait:#E9CE7C;
+    --glass-fill:rgba(34,39,58,0.44); --glass-fill-raised:rgba(48,55,80,0.54);
+    --glass-border:rgba(255,255,255,0.18); --glass-edge:rgba(0,0,0,0.40);
+    --glass-shadow:0 20px 56px rgba(0,0,0,0.55), 0 3px 10px rgba(0,0,0,0.30);
+    --glass-hi:inset 0 1.5px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(255,255,255,0.05);
+    --sheen:rgba(255,255,255,0.12);
+    --field:rgba(255,255,255,0.09); --field-focus:rgba(255,255,255,0.15); --hover:rgba(255,255,255,0.08);
+    --solid:#161A27;
+    --wall-1:#2548B8; --wall-2:#6B33C8; --wall-3:#0E8F80; --wall-opacity:0.55;
+    --scrim:rgba(0,0,0,0.52); --fade:rgba(7,9,15,0.90);
+    --canvas-ring:#F3F5FA; --canvas-shadow:rgba(0,0,0,0.55);
+    --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F3F5FA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  }
+}
+
+/* =====================================================================
+   Back office — liquid glass components
+   ===================================================================== */
+body{ background:var(--bg); color:var(--text); }
+#ambient-bg .blob{ opacity:var(--wall-opacity); }
+#ambient-bg .blob-1{ background:radial-gradient(circle, var(--wall-1), transparent 70%); }
+#ambient-bg .blob-2{ background:radial-gradient(circle, var(--wall-2), transparent 70%); }
+#ambient-bg .blob-3{ background:radial-gradient(circle, var(--wall-3), transparent 70%); }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+::placeholder{ color:var(--text-faint); }
+
+/* ---- the glass recipe ---- */
+.glass, .widget-card.glass, #notif-panel, #widget-panel, .toast{
+  background-color:var(--glass-fill);
+  background-image:linear-gradient(145deg, var(--sheen) 0%, rgba(255,255,255,0) 42%, rgba(255,255,255,0.05) 100%);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(190%);
+  backdrop-filter:blur(var(--glass-blur)) saturate(190%);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow), var(--glass-hi), 0 0 0 0.5px var(--glass-edge);
+}
+.widget-card.glass{ background-color:var(--glass-fill-raised); border-radius:32px; padding:24px; }
+/* nested surfaces: lighter, no second blur (cheaper on phones, and a blur inside a blur shows nothing) */
+.card.glass{ background-color:var(--glass-fill); border-radius:24px; -webkit-backdrop-filter:none; backdrop-filter:none;
+  box-shadow:var(--glass-hi), 0 0 0 0.5px var(--glass-edge); }
+#notif-panel, #widget-panel{ border-radius:28px; background-color:var(--glass-fill-raised); }
+#notif-panel{ z-index:210; top:78px; }
+
+/* ---- floating pill navigation ---- */
+#topbar{ position:sticky; top:12px; margin:12px auto 0; width:calc(100% - 24px); max-width:900px; border-radius:999px; padding:8px 10px 8px 22px; z-index:100; }
+#topbar .brand{ letter-spacing:-0.01em; }
+#topbar-right{ gap:8px; }
+#whoami-topbar{ color:var(--text-muted); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#theme-btn{ width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+#notif-btn{ width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+#widget-fab{ background-color:var(--glass-fill-raised); background-image:linear-gradient(145deg, var(--sheen), rgba(255,255,255,0));
+  color:var(--accent); border:1px solid var(--glass-border); box-shadow:var(--glass-shadow), var(--glass-hi);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(190%); backdrop-filter:blur(var(--glass-blur)) saturate(190%); }
+.widget-option:hover{ background:var(--hover); }
+.widget-option .add-btn{ background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); color:#fff; }
+.widget-option .add-btn:disabled{ background:var(--hover); color:var(--text-faint); }
+
+/* ---- buttons, pills, fields ---- */
+.btn{ background-color:var(--field); border:1px solid var(--glass-border); box-shadow:var(--glass-hi); color:var(--text);
+  -webkit-backdrop-filter:none; backdrop-filter:none; padding:10px 18px; }
+.btn:hover{ background-color:var(--field-focus); border-color:var(--glass-border); }
+.btn-primary, .btn.btn-primary{ background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); color:#fff;
+  border:1px solid rgba(255,255,255,0.38); box-shadow:0 8px 22px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.5); }
+.btn-primary:hover{ background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); filter:brightness(1.07); border-color:rgba(255,255,255,0.38); }
+.btn-danger, .btn.btn-danger{ background-color:var(--field); border-color:var(--bad); color:var(--ink-bad); }
+.widget-remove-btn:hover{ background:rgba(229,72,77,0.14); }
+
+.pill{ -webkit-backdrop-filter:none; backdrop-filter:none; }
+.pill-good{ background:rgba(79,157,92,0.18); color:var(--ink-good); }
+.pill-warn{ background:rgba(232,130,60,0.20); color:var(--ink-warn); }
+.pill-muted{ background:var(--hover); color:var(--text-muted); }
+.pill-accent{ background:rgba(11,102,219,0.14); color:var(--accent); }
+
+.form-row input, .form-row select, .form-row textarea, #biz-select,
+#login-screen input, #app-shell input:not([type=checkbox]):not([type=radio]):not([type=range]), #app-shell select, #app-shell textarea{
+  background-color:var(--field) !important; border:1px solid var(--glass-border) !important; border-radius:999px !important;
+  color:var(--text) !important; min-height:40px; box-shadow:inset 0 1px 3px rgba(20,30,60,0.08);
+  -webkit-backdrop-filter:none; backdrop-filter:none;
+}
+.form-row textarea, #app-shell textarea{ border-radius:22px !important; }
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus, #biz-select:focus,
+#login-screen input:focus, #app-shell input:focus, #app-shell select:focus, #app-shell textarea:focus{
+  outline:none; background-color:var(--field-focus) !important; border-color:var(--accent) !important;
+  box-shadow:inset 0 1px 3px rgba(20,30,60,0.08), 0 0 0 3px var(--accent-glow);
+}
+select, #biz-select, #app-shell select{
+  -webkit-appearance:none; appearance:none; background-image:var(--chevron) !important; background-repeat:no-repeat !important;
+  background-position:right 14px center !important; padding-right:36px !important;
+}
+.form-row input, .form-row select, .form-row textarea{ padding:10px 16px; }
+.check-row input{ accent-color:var(--accent); }
+
+table{ font-size:0.88rem; }
+th{ border-bottom-color:var(--glass-edge); }
+td{ border-bottom-color:var(--glass-edge); }
+tr:hover td{ background:var(--hover); }
+.inline-editor{ background:var(--hover); }
+
+.error-banner{ background:rgba(229,72,77,0.10); border-color:rgba(229,72,77,0.45); color:var(--ink-bad); border-radius:20px; -webkit-backdrop-filter:none; backdrop-filter:none; }
+.empty-state{ color:var(--text-muted); }
+.stat-card{ border-radius:24px; }
+
+/* ---- toasts: centred floating pills ---- */
+#toast-root{ position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:1000;
+  display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; max-width:calc(100vw - 24px); }
+.toast{ position:static; border-radius:999px; padding:12px 22px; pointer-events:auto; max-width:100%; }
+.toast.error{ color:var(--ink-bad); border-color:rgba(229,72,77,0.5); }
+.toast.success{ color:var(--ink-good); border-color:rgba(30,154,82,0.5); }
+.notif-item{ border-bottom-color:var(--glass-edge); border-radius:18px; }
+.notif-item:hover{ background:var(--hover); }
+.notif-item.unread{ border-left-color:var(--accent); }
+.conv-item.waiting{ border-left-color:var(--warn); }
+
+/* ---- sign-in card ---- */
+#login-screen .card{ width:min(400px, calc(100vw - 32px)); padding:32px; border-radius:36px; }
+#login-screen h1{ letter-spacing:-0.02em; }
+
+/* ---- sliders ---- */
+.eq-slider, .eq-row .eq-slider-h{ background:var(--field); border-color:var(--glass-border); box-shadow:inset 0 1px 3px rgba(20,30,60,0.10); }
+.eq-slider .eq-fill{ background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); }
+.eq-row .eq-fill-h{ background:linear-gradient(90deg, var(--accent-fill), var(--accent-top)); }
+.eq-slider .eq-thumb, .eq-row .eq-thumb-h{ background:#fff; box-shadow:0 2px 10px rgba(20,30,60,0.35), 0 0 14px var(--accent-glow); }
+.eq-row .eq-lock-btn{ border-radius:999px; background:var(--field); border-color:var(--glass-border); }
+.eq-row .eq-lock-btn.locked{ color:var(--accent); border-color:var(--accent); background:rgba(11,102,219,0.12); }
+
+/* ---- fallbacks ---- */
+@media (prefers-reduced-transparency: reduce){
+  .glass, .widget-card.glass, #notif-panel, #widget-panel, .toast, #widget-fab{
+    background-image:none; background-color:var(--solid); -webkit-backdrop-filter:none; backdrop-filter:none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  .glass, .widget-card.glass, #notif-panel, #widget-panel, .toast, #widget-fab{ background-image:none; background-color:var(--solid); }
+}
+@media (prefers-contrast: more){
+  :root{ --glass-border:var(--line-strong); --text-muted:var(--text); --text-faint:var(--text-muted); }
+}
+@media (max-width:640px){
+  /* Phone: the floating bar wraps to two tidy rows instead of running off the screen. */
+  #topbar{ flex-wrap:wrap; row-gap:8px; column-gap:10px; border-radius:30px; padding:10px 12px 10px 18px; justify-content:space-between; }
+  #topbar .brand{ white-space:nowrap; flex:0 0 auto; }
+  #topbar .brand .role-badge{ margin-left:6px; }
+  #biz-select{ flex:1 1 150px; min-width:0; max-width:none; }
+  #topbar-right{ flex:1 1 100%; justify-content:flex-end; flex-wrap:nowrap; }
+  .btn{ padding:9px 15px; }
+  .widget-card.glass{ padding:18px; border-radius:28px; }
+  #widget-fab{ top:auto; bottom:calc(20px + env(safe-area-inset-bottom)); right:16px; }
+}
+</style>
+<script>
+/* Light / dark switch. Follows the device until the person chooses; the
+   choice is remembered. Dispatches "ebos-theme" so canvas code can re-read colours. */
+(function(){
+  var KEY = 'ebos-theme', root = document.documentElement;
+  function systemDark(){ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+  function current(){ return root.getAttribute('data-theme') || (systemDark() ? 'dark' : 'light'); }
+  function paintMeta(t){
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', t === 'dark' ? '#07090F' : '#E8EDF7');
+  }
+  function apply(t, remember){
+    root.setAttribute('data-theme', t);
+    if (remember){ try { localStorage.setItem(KEY, t); } catch (e){} }
+    paintMeta(t);
+    try { window.dispatchEvent(new Event('ebos-theme')); } catch (e){}
+  }
+  window.EbosTheme = { current: current, toggle: function(){ apply(current() === 'dark' ? 'light' : 'dark', true); } };
+  paintMeta(current());
+  if (window.matchMedia){
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function(){ paintMeta(current()); try { window.dispatchEvent(new Event('ebos-theme')); } catch (e){} };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('#theme-btn, .theme-toggle') : null;
+    if (b) window.EbosTheme.toggle();
+  });
+})();
+</script>
 </head>
 <body>
 
@@ -300,23 +563,44 @@
 
 <!-- ============ LOGIN ============ -->
 <div id="login-screen">
+  <button class="btn theme-toggle" type="button" aria-label="Switch between light and dark appearance" title="Light / dark" style="position:fixed; top:16px; right:16px; width:42px; height:42px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:50%;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
   <div class="card glass">
     <h1>e-BOS Back Office</h1>
-    <p>Sign in with your owner, partner, or worker account.</p>
-    <div id="login-error" class="error-banner hidden"></div>
-    <div class="form-row">
-      <label>Holding company ID</label>
-      <input type="text" id="login-hc" placeholder="uuid" />
+    <div id="login-form">
+      <p>Sign in with your email and password.</p>
+      <div id="login-error" class="error-banner hidden" role="alert"></div>
+      <div class="form-row">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" autocomplete="username" />
+      </div>
+      <div class="form-row">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" autocomplete="current-password" />
+      </div>
+      <div id="login-company" class="form-row hidden">
+        <label>This email belongs to more than one company. Choose one:</label>
+        <div id="login-company-list"></div>
+      </div>
+      <button class="btn btn-primary" id="login-submit" style="width:100%;">Sign in</button>
+      <div id="login-resend" class="hidden" style="margin-top:12px;">
+        <button class="btn" id="resend-btn" style="width:100%;">Send the confirmation email again</button>
+        <div id="resend-msg" class="hint" role="status"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:14px;">
+        <a href="#forgot" id="forgot-link">Forgot password?</a>
+        <a href="/">Back to storefront</a>
+      </div>
     </div>
-    <div class="form-row">
-      <label>Email</label>
-      <input type="email" id="login-email" />
+    <div id="forgot-form" class="hidden">
+      <p>Enter your email address and we'll send a link to choose a new password.</p>
+      <div class="form-row">
+        <label for="forgot-email">Email</label>
+        <input type="email" id="forgot-email" autocomplete="username" />
+      </div>
+      <button class="btn btn-primary" id="forgot-submit" style="width:100%;">Send reset link</button>
+      <div id="forgot-msg" class="hint" role="status"></div>
+      <div style="margin-top:14px;"><a href="#" id="forgot-back">Back to sign in</a></div>
     </div>
-    <div class="form-row">
-      <label>Password</label>
-      <input type="password" id="login-password" />
-    </div>
-    <button class="btn btn-primary" id="login-submit" style="width:100%;">Sign in</button>
   </div>
 </div>
 
@@ -327,7 +611,10 @@
     <select id="biz-select"></select>
     <div id="topbar-right">
       <span id="whoami-topbar"></span>
+      <button class="btn" id="theme-btn" type="button" aria-label="Switch between light and dark appearance" title="Light / dark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
+      <button class="btn" id="notif-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">🔔<span id="notif-count" class="notif-count hidden">0</span></button>
       <button class="btn" id="logout-btn">Sign out</button>
+      <button class="btn" id="logout-all-btn" title="Sign out on every device">All devices</button>
     </div>
   </div>
   <div id="card-scroll"></div>
@@ -339,6 +626,7 @@
   <div id="widget-panel-list"></div>
 </div>
 
+<div id="notif-panel" class="glass hidden" role="region" aria-label="Notifications"></div>
 <div id="toast-root"></div>
 <script>
 (function(){
@@ -351,10 +639,22 @@
      ===================================================================== */
   var BACKEND_BASE_URL = '';
 
-  /* ============ Auth token storage ============ */
+  /* ============ Session storage ============
+     Signed-in state is an HttpOnly cookie the server sets — JavaScript
+     cannot read it, so a script-injection bug cannot steal the session.
+     Only NON-secret display info (who you are) is kept in localStorage.
+     Exception: when this file is served from a DIFFERENT origin than the
+     API (BACKEND_BASE_URL set), the SameSite=Strict cookie is not sent
+     cross-site, so the bearer token returned by /auth/login is kept in
+     localStorage instead (the older behaviour). */
+  var CROSS_ORIGIN = BACKEND_BASE_URL !== '';
   var AuthStore = {
     get: function(){ try { return JSON.parse(localStorage.getItem('ebos_auth') || 'null'); } catch(e){ return null; } },
-    set: function(auth){ try { localStorage.setItem('ebos_auth', JSON.stringify(auth)); } catch(e){} },
+    set: function(auth){
+      var toStore = { person: auth.person };
+      if (CROSS_ORIGIN && auth.token) toStore.token = auth.token;
+      try { localStorage.setItem('ebos_auth', JSON.stringify(toStore)); } catch(e){}
+    },
     clear: function(){ try { localStorage.removeItem('ebos_auth'); } catch(e){} }
   };
 
@@ -366,12 +666,16 @@
       var auth = AuthStore.get();
       var headers = Object.assign({}, (options && options.headers) || {});
       if (options && options.body !== undefined) headers['Content-Type'] = 'application/json';
+      // Required by the server for cookie-authenticated writes (CSRF guard).
+      headers['X-Ebos-Client'] = 'web';
       if (auth && auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
-      var mergedOptions = Object.assign({}, options, { headers: headers });
+      var mergedOptions = Object.assign({}, options, { headers: headers, credentials: 'same-origin' });
       var res = await fetch(BACKEND_BASE_URL + path, mergedOptions);
-      if (res.status === 401){
-        // Token expired or invalid — force back to login rather than let
-        // every subsequent call fail silently one by one.
+      // A 401 from an /auth/* call is an answer to that call (wrong
+      // password, expired link...) — NOT an expired session. Reloading on
+      // it, as this used to, made a failed sign-in look like nothing
+      // happened. Everywhere else a 401 does mean the session is gone.
+      if (res.status === 401 && path.indexOf('/auth/') !== 0){
         AuthStore.clear();
         window.location.reload();
         throw new Error('Session expired');
@@ -380,7 +684,7 @@
         var body = null;
         try { body = await res.json(); } catch(e){}
         var err = new Error((body && body.message) || ('API error ' + res.status));
-        err.status = res.status; err.code = body && body.error;
+        err.status = res.status; err.code = body && body.error; err.body = body;
         throw err;
       }
       if (res.status === 204) return null;
@@ -390,8 +694,29 @@
     return {
       // --- Auth ---
       login: function(email, password, holdingCompanyId){
-        return apiFetch('/auth/login', { method:'POST', body: JSON.stringify({ email:email, password:password, holdingCompanyId:holdingCompanyId }) });
+        var payload = { email: email, password: password };
+        if (holdingCompanyId) payload.holdingCompanyId = holdingCompanyId;
+        return apiFetch('/auth/login', { method:'POST', body: JSON.stringify(payload) });
       },
+      session: function(){ return apiFetch('/auth/session'); },
+      logout: function(){ return apiFetch('/auth/logout', { method:'POST', body: JSON.stringify({}) }); },
+      logoutEverywhere: function(){ return apiFetch('/auth/logout-everywhere', { method:'POST', body: JSON.stringify({}) }); },
+      forgotPassword: function(email){ return apiFetch('/auth/forgot-password', { method:'POST', body: JSON.stringify({ email: email }) }); },
+      resendVerification: function(email){ return apiFetch('/auth/resend-verification', { method:'POST', body: JSON.stringify({ email: email }) }); },
+
+      // --- Notifications ---
+      listNotifications: function(unreadOnly){ return apiFetch('/notifications?limit=20' + (unreadOnly ? '&unread=true' : '')); },
+      markNotificationsRead: function(ids){ return apiFetch('/notifications/read', { method:'POST', body: JSON.stringify(ids ? { ids: ids } : {}) }); },
+
+      // --- AI settings (retrieval depth, auto-escalation) ---
+      getAiSettings: function(businessId){ return apiFetch('/businesses/' + businessId + '/ai-settings'); },
+      putAiSettings: function(businessId, body){ return apiFetch('/businesses/' + businessId + '/ai-settings', { method:'PUT', body: JSON.stringify(body) }); },
+
+      // --- People: invite by email ---
+      invitePerson: function(id){ return apiFetch('/people/' + id + '/invite', { method:'POST', body: JSON.stringify({}) }); },
+
+      // --- Payments for an order ---
+      listOrderPayments: function(orderId){ return apiFetch('/orders/' + orderId + '/payments'); },
 
       // --- Businesses ---
       listBusinesses: function(){ return apiFetch('/businesses'); },
@@ -521,10 +846,12 @@
     card.setAttribute('data-card', key);
     card.innerHTML =
       '<div class="widget-head"><h2>' + escapeHtml(CARD_DEFS[key].title) + '</h2>' +
+      '<span class="widget-summary" aria-live="polite"></span>' +
       '<button class="widget-remove-btn" title="Remove from screen">×</button></div>' +
       '<div class="widget-body"><div class="empty-state">Loading…</div></div>';
     card.querySelector('.widget-remove-btn').addEventListener('click', function(){ removeCard(key); });
     scroll.appendChild(card);
+    loadSummary(key, card.querySelector('.widget-summary'));
     var renderer = VIEW_RENDERERS[key];
     var body = card.querySelector('.widget-body');
     if (!renderer){ body.innerHTML = '<div class="error-banner">No renderer for "'+key+'".</div>'; return; }
@@ -561,12 +888,134 @@
     if (!el) return;
     el.innerHTML = '<div class="empty-state">Loading…</div>';
     VIEW_RENDERERS[key](el).catch(function(err){ el.innerHTML = '<div class="error-banner">'+escapeHtml(err.message)+'</div>'; });
+    window.refreshSummary(key);
   };
   function renderAllCards(){
     document.getElementById('card-scroll').innerHTML = '';
     state.layout.forEach(mountCard);
   }
   window.renderAllCards = renderAllCards;
+
+  function byId(id){ return document.getElementById(id); }
+
+  /* ============ Card summaries ============
+     One glanceable line per card, computed from the same real API data the
+     card itself shows. A summary that cannot be loaded stays blank rather
+     than guessing. */
+  var SUMMARIES = {
+    dashboard: async function(){ var n = state.businesses.length; return n + (n === 1 ? ' business' : ' businesses'); },
+    materials: async function(){
+      var m = await Backend.listMaterials(state.currentBusinessId);
+      var p = m.filter(function(x){ return x.publishedToStream; }).length;
+      return m.length + ' materials · ' + p + ' published';
+    },
+    orders: async function(){
+      var o = await Backend.listOrders(state.currentBusinessId);
+      var w = o.filter(function(x){ return x.status === 'pending_payment'; }).length;
+      return o.length + ' orders' + (w ? ' · ' + w + ' awaiting payment' : '');
+    },
+    inbox: async function(){
+      var c = await Backend.listConversations(state.currentBusinessId);
+      var w = c.filter(function(x){ return x.handledBy === 'awaiting_human'; }).length;
+      return c.length + ' conversations' + (w ? ' · ' + w + ' waiting for a person' : '');
+    },
+    people: async function(){ var p = await Backend.listPeople(); return p.length + (p.length === 1 ? ' person' : ' people'); },
+    ledger: async function(){ var e = await Backend.listLedgerEntries(state.currentBusinessId); return e.length + (e.length === 1 ? ' ledger entry' : ' ledger entries'); },
+    equity: async function(){
+      var ps = await Backend.listPartnerships(state.currentBusinessId);
+      var sum = ps.reduce(function(a, p){ return a + Number(p.ownershipPct || 0); }, 0);
+      return ps.length + (ps.length === 1 ? ' partner' : ' partners') + ' · ' + (Math.round(sum * 100) / 100) + '% owned';
+    }
+  };
+  function loadSummary(key, el){
+    if (!el || !SUMMARIES[key] || !state.currentBusinessId && key !== 'dashboard' && key !== 'people') return;
+    SUMMARIES[key]().then(function(t){ el.textContent = t; }).catch(function(){ el.textContent = ''; });
+  }
+  window.refreshSummary = function(key){
+    var el = document.querySelector('.widget-card[data-card="' + key + '"] .widget-summary');
+    loadSummary(key, el);
+  };
+
+  /* ============ Notifications (in-app inbox for staff) ============ */
+  var BASE_TITLE = document.title;
+  var notifState = { items: [], unread: 0, timer: null };
+  function renderNotifBadge(){
+    var el = byId('notif-count');
+    if (notifState.unread > 0){ el.textContent = notifState.unread > 99 ? '99+' : String(notifState.unread); el.classList.remove('hidden'); }
+    else el.classList.add('hidden');
+    document.title = (notifState.unread > 0 ? '(' + notifState.unread + ') ' : '') + BASE_TITLE;
+  }
+  function focusInbox(){
+    if (state.layout.indexOf('inbox') === -1 && state.auth && roleCanUse('inbox', state.auth.person.role)) addCard('inbox');
+    var el = document.querySelector('.widget-card[data-card="inbox"]');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function renderNotifPanel(){
+    var panelEl = byId('notif-panel');
+    var items = notifState.items;
+    panelEl.innerHTML =
+      '<div class="notif-head"><span>Notifications</span>' + (notifState.unread ? '<button class="btn" id="notif-readall">Mark all read</button>' : '') + '</div>' +
+      (items.length === 0
+        ? '<div class="empty-state">Nothing yet. You\'ll be told here when a customer is waiting for a person or a payment arrives.</div>'
+        : items.map(function(i){
+            return '<div class="notif-item ' + (i.read ? '' : 'unread') + '" data-id="' + escapeHtml(i.id) + '">' +
+              '<div><b>' + escapeHtml(i.title) + '</b></div>' +
+              (i.body ? '<div>' + escapeHtml(i.body) + '</div>' : '') +
+              '<div class="when">' + escapeHtml(new Date(i.createdAt).toLocaleString()) + '</div></div>';
+          }).join(''));
+    var all = panelEl.querySelector('#notif-readall');
+    if (all) all.addEventListener('click', async function(){
+      try { await Backend.markNotificationsRead(); } catch(e){ toast('Could not update: ' + e.message, 'error'); return; }
+      notifState.items.forEach(function(i){ i.read = true; }); notifState.unread = 0; renderNotifBadge(); renderNotifPanel();
+    });
+    panelEl.querySelectorAll('.notif-item').forEach(function(el){
+      el.addEventListener('click', async function(){
+        var id = el.getAttribute('data-id');
+        var item = notifState.items.find(function(i){ return i.id === id; });
+        if (!item) return;
+        if (!item.read){
+          try { await Backend.markNotificationsRead([id]); item.read = true; notifState.unread = Math.max(0, notifState.unread - 1); renderNotifBadge(); } catch(e){}
+        }
+        closeNotifPanel();
+        if (item.businessId && item.businessId !== state.currentBusinessId && state.businesses.some(function(b){ return b.id === item.businessId; })){
+          state.currentBusinessId = item.businessId; byId('biz-select').value = item.businessId; renderAllCards();
+        }
+        if (item.kind === 'handoff_waiting') focusInbox();
+        else if (item.kind === 'payment_received'){ var o = document.querySelector('.widget-card[data-card="orders"]'); if (o) o.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      });
+    });
+  }
+  function openNotifPanel(){ renderNotifPanel(); byId('notif-panel').classList.remove('hidden'); byId('notif-btn').setAttribute('aria-expanded', 'true'); }
+  function closeNotifPanel(){ byId('notif-panel').classList.add('hidden'); byId('notif-btn').setAttribute('aria-expanded', 'false'); }
+  byId('notif-btn').addEventListener('click', function(e){
+    e.stopPropagation();
+    byId('notif-panel').classList.contains('hidden') ? openNotifPanel() : closeNotifPanel();
+  });
+  document.addEventListener('click', function(e){
+    var p = byId('notif-panel');
+    if (!p.classList.contains('hidden') && !p.contains(e.target)) closeNotifPanel();
+  });
+  async function pollNotifications(first){
+    try {
+      var res = await Backend.listNotifications(false);
+      var known = {}; notifState.items.forEach(function(i){ known[i.id] = true; });
+      var fresh = res.items.filter(function(i){ return !i.read && !known[i.id]; });
+      notifState.items = res.items; notifState.unread = res.unreadCount;
+      renderNotifBadge();
+      if (!byId('notif-panel').classList.contains('hidden')) renderNotifPanel();
+      if (!first && fresh.length > 0){
+        toast(fresh[0].title + (fresh.length > 1 ? ' (+' + (fresh.length - 1) + ' more)' : ''), 'success');
+        window.refreshSummary('inbox'); window.refreshSummary('orders');
+      }
+    } catch(e){ /* transient; the next poll will retry */ }
+  }
+  function startNotifPolling(){
+    if (notifState.timer) clearInterval(notifState.timer);
+    pollNotifications(true);
+    // Honest about what this is: polling every 30 s while the tab is visible,
+    // not push. Real-time delivery is a later piece of work.
+    notifState.timer = setInterval(function(){ if (!document.hidden) pollNotifications(false); }, 30000);
+  }
 
   /* ============ Floating widget picker — spring open/close ============ */
   var fab = document.getElementById('widget-fab');
@@ -602,23 +1051,79 @@
     });
   }
 
-  document.getElementById('login-submit').addEventListener('click', async function(){
-    var hc = document.getElementById('login-hc').value.trim();
-    var email = document.getElementById('login-email').value.trim();
-    var password = document.getElementById('login-password').value;
-    var errBox = document.getElementById('login-error');
-    errBox.classList.add('hidden');
-    if (!hc || !email || !password){ errBox.textContent = 'All three fields are required.'; errBox.classList.remove('hidden'); return; }
+  /* ============ Sign in / recovery ============ */
+  function showLoginError(msg){ var box = byId('login-error'); box.textContent = msg; box.classList.remove('hidden'); }
+  function showForgot(show){
+    byId('forgot-form').classList.toggle('hidden', !show);
+    byId('login-form').classList.toggle('hidden', show);
+    if (show){ byId('forgot-msg').textContent = ''; byId('forgot-email').value = byId('login-email').value; }
+  }
+  async function doLogin(holdingCompanyId){
+    var email = byId('login-email').value.trim();
+    var password = byId('login-password').value;
+    byId('login-error').classList.add('hidden');
+    byId('login-resend').classList.add('hidden');
+    if (!holdingCompanyId) byId('login-company').classList.add('hidden');
+    if (!email || !password){ showLoginError('Enter your email and password.'); return; }
+    var btn = byId('login-submit'); btn.disabled = true;
     try {
-      var result = await Backend.login(email, password, hc);
+      var result = await Backend.login(email, password, holdingCompanyId);
+      byId('login-password').value = '';
       AuthStore.set({ token: result.token, person: result.person });
       await boot();
     } catch (err){
-      errBox.textContent = err.status === 401 ? 'Invalid credentials.' : ('Could not sign in: ' + err.message);
-      errBox.classList.remove('hidden');
-    }
+      if (err.code === 'choose_company' && err.body && err.body.companies){
+        var list = byId('login-company-list'); list.innerHTML = '';
+        err.body.companies.forEach(function(c){
+          var b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.textContent = c.name;
+          b.addEventListener('click', function(){ doLogin(c.holdingCompanyId); });
+          list.appendChild(b);
+        });
+        byId('login-company').classList.remove('hidden');
+      } else if (err.code === 'email_not_verified'){
+        showLoginError(err.message);
+        byId('login-resend').classList.remove('hidden');
+      } else if (err.status === 429){
+        showLoginError(err.message || 'Too many sign-in attempts. Please wait a few minutes and try again.');
+      } else if (err.status === 401){
+        showLoginError('Invalid email or password.');
+      } else {
+        showLoginError('Could not sign in: ' + err.message);
+      }
+    } finally { btn.disabled = false; }
+  }
+  byId('login-submit').addEventListener('click', function(){ doLogin(); });
+  ['login-email', 'login-password'].forEach(function(id){
+    byId(id).addEventListener('keydown', function(e){ if (e.key === 'Enter') doLogin(); });
   });
-  document.getElementById('logout-btn').addEventListener('click', function(){ AuthStore.clear(); window.location.reload(); });
+  byId('resend-btn').addEventListener('click', async function(){
+    var email = byId('login-email').value.trim(); var msg = byId('resend-msg');
+    if (!email){ msg.textContent = 'Enter your email address above first.'; return; }
+    try { await Backend.resendVerification(email); msg.textContent = 'If that address is waiting for confirmation, a new link is on its way.'; }
+    catch (err){ msg.textContent = err.status === 429 ? 'Please wait a bit before asking again.' : "Couldn't send that just now."; }
+  });
+  byId('forgot-link').addEventListener('click', function(e){ e.preventDefault(); showForgot(true); });
+  byId('forgot-back').addEventListener('click', function(e){ e.preventDefault(); showForgot(false); });
+  byId('forgot-submit').addEventListener('click', async function(){
+    var email = byId('forgot-email').value.trim(); var msg = byId('forgot-msg');
+    if (!email){ msg.textContent = 'Enter your email address.'; return; }
+    this.disabled = true;
+    try {
+      var r = await Backend.forgotPassword(email);
+      msg.textContent = (r && r.message) || 'If an account exists for that email address, we have sent it an email.';
+    } catch (err){
+      msg.textContent = err.status === 429 ? 'Too many requests — please wait a while before trying again.' : (err.message || "Couldn't send that just now.");
+    } finally { var self = this; setTimeout(function(){ self.disabled = false; }, 5000); }
+  });
+  byId('logout-btn').addEventListener('click', async function(){
+    try { await Backend.logout(); } catch(e){}
+    AuthStore.clear(); window.location.reload();
+  });
+  byId('logout-all-btn').addEventListener('click', async function(){
+    if (!window.confirm('Sign out on every device where you are signed in?')) return;
+    try { await Backend.logoutEverywhere(); } catch(err){ toast('Could not sign out everywhere: ' + err.message, 'error'); return; }
+    AuthStore.clear(); window.location.reload();
+  });
 
   document.getElementById('biz-select').addEventListener('change', function(e){
     state.currentBusinessId = e.target.value;
@@ -632,24 +1137,44 @@
     sel.value = state.currentBusinessId;
   }
 
+  // Used by the Dashboard's "Add a business" form after creating one.
+  window.refreshBusinesses = async function(selectId){
+    state.businesses = await Backend.listBusinesses();
+    if (selectId) state.currentBusinessId = selectId;
+    populateBizSwitcher();
+    renderAllCards();
+  };
+
   async function boot(){
     state.auth = AuthStore.get();
+    if (state.auth){
+      // The session cookie is HttpOnly, so ask the server whether it is
+      // still good rather than trusting what is in localStorage.
+      try {
+        var s = await Backend.session();
+        state.auth = { person: s.person, token: state.auth.token };
+        AuthStore.set(state.auth);
+      } catch (e){ AuthStore.clear(); state.auth = null; }
+    }
     if (!state.auth){
-      document.getElementById('login-screen').classList.remove('hidden');
-      document.getElementById('app-shell').classList.add('hidden');
-      document.getElementById('widget-fab').classList.add('hidden');
+      byId('login-screen').classList.remove('hidden');
+      byId('app-shell').classList.add('hidden');
+      byId('widget-fab').classList.add('hidden');
+      showForgot(location.hash === '#forgot');
       return;
     }
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('app-shell').classList.remove('hidden');
-    document.getElementById('widget-fab').classList.remove('hidden');
-    document.getElementById('whoami-topbar').textContent = state.auth.person.email;
-    document.getElementById('role-badge').textContent = state.auth.person.role;
+    byId('login-screen').classList.add('hidden');
+    byId('app-shell').classList.remove('hidden');
+    byId('widget-fab').classList.remove('hidden');
+    byId('whoami-topbar').textContent = state.auth.person.email;
+    byId('role-badge').textContent = state.auth.person.role;
     try { state.businesses = await Backend.listBusinesses(); }
     catch(err){ toast('Could not load businesses: ' + err.message, 'error'); state.businesses = []; }
     populateBizSwitcher();
     state.layout = loadLayout();
     renderAllCards();
+    startNotifPolling();
+    if (location.hash === '#inbox'){ focusInbox(); try { history.replaceState(null, '', location.pathname + location.search); } catch(e){} }
   }
   boot();
 })();
@@ -732,11 +1257,29 @@ registerView('dashboard', async function(body){
     '<p style="color:var(--text-muted); font-size:0.9rem; margin:0 0 18px;">' + escapeHtml(biz.name) + ' — at a glance.</p>' +
     (rollupError ? '<div class="error-banner">Could not load the holding-company rollup (needs owner/partner access): ' + escapeHtml(rollupError.message) + '</div>' : '') +
     '<div class="stat-grid">' +
-      (rollup ? '<div class="stat-card glass"><div class="num">$' + Number(rollup.grandTotal.totalDebits).toLocaleString() + '</div><div class="label">Total debits, holding company</div></div><div class="stat-card glass"><div class="num">$' + Number(rollup.grandTotal.totalCredits).toLocaleString() + '</div><div class="label">Total credits, holding company</div></div>' : '') +
+      (rollup ? '<div class="stat-card glass"><div class="num">' + Number(rollup.grandTotal.totalDebits).toLocaleString() + '</div><div class="label">Total debits, holding company</div></div><div class="stat-card glass"><div class="num">' + Number(rollup.grandTotal.totalCredits).toLocaleString() + '</div><div class="label">Total credits, holding company</div></div>' : '') +
       '<div class="stat-card glass"><div class="num">' + materials.length + '</div><div class="label">Materials on file</div></div>' +
       '<div class="stat-card glass"><div class="num">' + published + '</div><div class="label">Published to storefront</div></div>' +
       '<div class="stat-card glass"><div class="num">' + orders.length + '</div><div class="label">Orders (this business)</div></div>' +
-    '</div>';
+    '</div>' +
+    '<p style="font-size:0.78rem; color:var(--text-muted); margin:4px 0 0;">Ledger amounts are plain numbers: the ledger does not record a currency yet, so none is shown rather than guessing one.</p>' +
+    (appState.auth.person.role === 'owner'
+      ? '<div class="card glass" style="margin-top:18px;"><b style="display:block; margin-bottom:6px;">Add another business</b>' +
+        '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:12px;">Creates a second business under the same holding company. Everyone in the company can see it; use partnerships to limit who owns what.</p>' +
+        '<div style="display:flex; gap:10px; flex-wrap:wrap;"><input class="new-biz-name" placeholder="Business name" maxlength="120" style="flex:1 1 200px;" /><button class="btn btn-primary new-biz-btn">Add business</button></div></div>'
+      : '');
+  var nbBtn = body.querySelector('.new-biz-btn');
+  if (nbBtn) nbBtn.addEventListener('click', async function(){
+    var input = body.querySelector('.new-biz-name');
+    var name = input.value.trim();
+    if (!name){ appToast('Enter a name for the business.', 'error'); return; }
+    nbBtn.disabled = true;
+    try {
+      var created = await Backend.createBusiness({ name: name });
+      appToast('Added ' + name + '.', 'success');
+      await window.refreshBusinesses(created.id);
+    } catch(err){ appToast('Could not add the business: ' + err.message, 'error'); nbBtn.disabled = false; }
+  });
 });
 </script>
 <script>
@@ -744,73 +1287,209 @@ registerView('dashboard', async function(body){
 registerView('materials', async function(body){
   var bizId = appState.currentBusinessId;
   var materials = await Backend.listMaterials(bizId);
+  var STREAM_CATEGORIES = ['food','agriculture','energy','manufacturing','education'];
+  var esc = escapeHtml;
+
+  function categoryOptions(selected){
+    return '<option value="">—</option>' + STREAM_CATEGORIES.map(function(c){
+      return '<option value="' + c + '"' + (c === selected ? ' selected' : '') + '>' + c + '</option>';
+    }).join('');
+  }
+  function isHttps(u){ return /^https:\/\/[^\s]+$/i.test(u); }
+
+  // Reads the storefront fields inside `root` and returns a catalogMeta
+  // object, or throws an Error whose message is safe to show the user.
+  function readMeta(root, fallbackName){
+    function v(sel){ var el = root.querySelector(sel); return el ? el.value.trim() : ''; }
+    var meta = {};
+    meta.category = v('.f-category') || 'manufacturing';
+    meta.description = v('.f-desc') || fallbackName;
+    meta.icon = v('.f-icon') || '📦';
+    var priceRaw = v('.f-price');
+    if (priceRaw !== ''){
+      var price = Number(priceRaw);
+      if (!(price > 0) || Math.round(price * 100) / 100 !== price) throw new Error('Price must be a positive amount with at most 2 decimal places.');
+      var cur = (v('.f-currency') || 'GHS').toUpperCase();
+      if (!/^[A-Z]{3}$/.test(cur)) throw new Error('Currency must be a 3-letter code such as GHS.');
+      meta.price = price; meta.currency = cur;
+    }
+    var image = v('.f-image'), video = v('.f-video');
+    if ((image && !isHttps(image)) || (video && !isHttps(video))) throw new Error('Image and video links must start with https://');
+    if (image || video) meta.media = { image: image || null, video: video || null };
+    return meta;
+  }
+
+  function storefrontFields(m){
+    m = m || {}; var media = m.media || {};
+    return '<div class="form-grid">' +
+        '<div class="form-row"><label>Category</label><select class="f-category">' + categoryOptions(m.category) + '</select></div>' +
+        '<div class="form-row"><label>Icon (one emoji)</label><input class="f-icon" maxlength="8" value="' + esc(m.icon || '') + '" /></div>' +
+        '<div class="form-row"><label>Price (optional — lets visitors buy online)</label><input class="f-price" type="number" min="0" step="0.01" inputmode="decimal" value="' + (m.price != null ? esc(m.price) : '') + '" /></div>' +
+        '<div class="form-row"><label>Currency</label><input class="f-currency" maxlength="3" value="' + esc(m.currency || 'GHS') + '" /></div>' +
+      '</div>' +
+      '<div class="form-row"><label>Description</label><textarea class="f-desc" rows="2">' + esc(m.description || '') + '</textarea></div>' +
+      '<div class="form-grid">' +
+        '<div class="form-row"><label>Image link (https://…)</label><input class="f-image" value="' + esc(media.image || '') + '" /></div>' +
+        '<div class="form-row"><label>Video link (https://…)</label><input class="f-video" value="' + esc(media.video || '') + '" /></div>' +
+      '</div>';
+  }
+  function priceCell(m){
+    var cm = m.catalogMeta;
+    return (cm && cm.price != null) ? esc((cm.currency || 'GHS') + ' ' + Number(cm.price).toFixed(2)) : '<span style="color:var(--text-faint);">—</span>';
+  }
 
   body.innerHTML =
-    '<p style="color:var(--text-muted); font-size:0.9rem; margin:0 0 18px;">Every material, raw through finished. Publish a finished item to put it on the public storefront.</p>' +
-    '<div class="card glass" style="margin-bottom:20px;">' +
+    '<p style="color:var(--text-muted); font-size:0.9rem; margin:0 0 18px;">Every material, raw through finished. Publish a finished item to put it on the public storefront; give it a price and visitors can buy it online once payments are switched on.</p>' +
+    '<div class="card glass add-card" style="margin-bottom:20px;">' +
       '<b style="display:block; margin-bottom:12px;">Add a material</b>' +
       '<div class="form-grid">' +
         '<div class="form-row"><label>Name</label><input class="mat-name" /></div>' +
         '<div class="form-row"><label>Unit</label><input class="mat-unit" placeholder="kg, unit, liter…" /></div>' +
         '<div class="form-row"><label>Stage</label><select class="mat-stage"><option value="raw">Raw</option><option value="wip">Work in progress</option><option value="finished">Finished</option></select></div>' +
-        '<div class="form-row"><label>Category (for storefront, optional)</label><select class="mat-category"><option value="">—</option><option>food</option><option>agriculture</option><option>energy</option><option>manufacturing</option><option>education</option></select></div>' +
       '</div>' +
-      '<div class="form-row"><label>Description (for storefront, optional)</label><textarea class="mat-desc" rows="2"></textarea></div>' +
+      '<div class="check-row"><input type="checkbox" class="mat-publish" id="mat-publish-new" /><label for="mat-publish-new">Publish to the public storefront now (finished items only)</label></div>' +
+      '<div class="storefront-fields hidden">' + storefrontFields({}) + '</div>' +
       '<button class="btn btn-primary mat-create-btn">Add material</button>' +
     '</div>' +
     (materials.length === 0
       ? '<div class="empty-state">No materials yet — add your first one above.</div>'
-      : '<table><thead><tr><th>Name</th><th>Stage</th><th>Unit</th><th>Storefront</th><th></th></tr></thead><tbody class="mat-tbody"></tbody></table>');
+      : '<div style="overflow-x:auto;"><table><thead><tr><th>Name</th><th>Stage</th><th>Unit</th><th>Price</th><th>Storefront</th><th></th></tr></thead><tbody class="mat-tbody"></tbody></table></div>');
+
+  var addCard = body.querySelector('.add-card');
+  addCard.querySelector('.mat-publish').addEventListener('change', function(){
+    addCard.querySelector('.storefront-fields').classList.toggle('hidden', !this.checked);
+  });
 
   var tbody = body.querySelector('.mat-tbody');
   if (tbody){
     tbody.innerHTML = materials.map(function(m){
-      return '<tr data-id="'+m.id+'">' +
-        '<td>'+escapeHtml(m.name)+'</td>' +
-        '<td><span class="pill pill-muted">'+m.stage+'</span></td>' +
-        '<td>'+escapeHtml(m.unit)+'</td>' +
+      return '<tr data-id="' + m.id + '">' +
+        '<td>' + esc(m.name) + '</td>' +
+        '<td><span class="pill pill-muted">' + m.stage + '</span></td>' +
+        '<td>' + esc(m.unit) + '</td>' +
+        '<td>' + priceCell(m) + '</td>' +
         '<td>' + (m.publishedToStream ? '<span class="pill pill-good">Published</span>' : '<span class="pill pill-muted">Not published</span>') + '</td>' +
-        '<td><button class="btn toggle-publish-btn" data-id="'+m.id+'">'+(m.publishedToStream ? 'Unpublish' : 'Publish')+'</button></td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button class="btn toggle-publish-btn" data-id="' + m.id + '">' + (m.publishedToStream ? 'Unpublish' : 'Publish') + '</button> ' +
+          '<button class="btn edit-btn" data-id="' + m.id + '">Edit</button> ' +
+          '<button class="btn btn-danger delete-btn" data-id="' + m.id + '">Delete</button>' +
+        '</td>' +
       '</tr>';
     }).join('');
 
+    function findMat(id){ return materials.find(function(m){ return m.id === id; }); }
+
     tbody.querySelectorAll('.toggle-publish-btn').forEach(function(btn){
       btn.addEventListener('click', async function(){
-        var id = btn.getAttribute('data-id');
-        var mat = materials.find(function(m){ return m.id === id; });
+        var mat = findMat(btn.getAttribute('data-id'));
         btn.disabled = true;
         try {
           if (mat.publishedToStream){
-            await Backend.updateMaterial(id, { catalogMeta: null });
+            await Backend.updateMaterial(mat.id, { catalogMeta: null });
             appToast('Unpublished ' + mat.name, 'success');
           } else {
             if (mat.stage !== 'finished'){
               appToast('Only "finished" materials can be published — update the stage first.', 'error');
               btn.disabled = false; return;
             }
-            await Backend.updateMaterial(id, { catalogMeta: { icon: '📦', category: mat.catalogMeta && mat.catalogMeta.category || 'manufacturing', description: mat.catalogMeta && mat.catalogMeta.description || mat.name } });
+            var cm = mat.catalogMeta || {};
+            var meta = { icon: cm.icon || '📦', category: cm.category || 'manufacturing', description: cm.description || mat.name };
+            if (cm.price != null){ meta.price = cm.price; meta.currency = cm.currency || 'GHS'; }
+            if (cm.media) meta.media = cm.media;
+            await Backend.updateMaterial(mat.id, { catalogMeta: meta });
             appToast('Published ' + mat.name, 'success');
           }
           reloadCurrentCard('materials');
         } catch(err){ appToast('Failed: ' + err.message, 'error'); btn.disabled = false; }
       });
     });
+
+    tbody.querySelectorAll('.delete-btn').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var mat = findMat(btn.getAttribute('data-id'));
+        if (!window.confirm('Delete "' + mat.name + '"? This cannot be undone.')) return;
+        btn.disabled = true;
+        try {
+          await Backend.deleteMaterial(mat.id);
+          appToast('Deleted ' + mat.name, 'success');
+          reloadCurrentCard('materials');
+        } catch(err){
+          // Orders or ledger entries that use a material keep it from being deleted.
+          appToast('Could not delete "' + mat.name + '": ' + err.message, 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+
+    tbody.querySelectorAll('.edit-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var mat = findMat(btn.getAttribute('data-id'));
+        var tr = btn.closest('tr');
+        var open = tbody.querySelector('tr.inline-editor[data-for="' + mat.id + '"]');
+        if (open){ open.remove(); return; }
+        var ed = document.createElement('tr');
+        ed.className = 'inline-editor'; ed.setAttribute('data-for', mat.id);
+        ed.innerHTML = '<td colspan="6">' +
+          '<div class="form-grid">' +
+            '<div class="form-row"><label>Name</label><input class="e-name" value="' + esc(mat.name) + '" /></div>' +
+            '<div class="form-row"><label>Unit</label><input class="e-unit" value="' + esc(mat.unit) + '" /></div>' +
+            '<div class="form-row"><label>Stage</label><select class="e-stage">' +
+              ['raw','wip','finished'].map(function(st){ return '<option value="' + st + '"' + (st === mat.stage ? ' selected' : '') + '>' + st + '</option>'; }).join('') +
+            '</select></div>' +
+          '</div>' +
+          '<div class="check-row"><input type="checkbox" class="e-publish" id="pub-' + mat.id + '"' + (mat.publishedToStream ? ' checked' : '') + ' /><label for="pub-' + mat.id + '">Shown on the public storefront</label></div>' +
+          '<div class="storefront-fields' + (mat.publishedToStream ? '' : ' hidden') + '">' + storefrontFields(mat.catalogMeta) +
+            '<p style="font-size:0.78rem; color:var(--text-muted); margin:0 0 10px;">Unpublishing clears the storefront details (icon, price, images).</p></div>' +
+          '<div style="display:flex; gap:8px;"><button class="btn btn-primary e-save">Save changes</button><button class="btn e-cancel">Cancel</button></div>' +
+        '</td>';
+        tr.after(ed);
+        ed.querySelector('.e-publish').addEventListener('change', function(){
+          ed.querySelector('.storefront-fields').classList.toggle('hidden', !this.checked);
+        });
+        ed.querySelector('.e-cancel').addEventListener('click', function(){ ed.remove(); });
+        ed.querySelector('.e-save').addEventListener('click', async function(){
+          var name = ed.querySelector('.e-name').value.trim();
+          var unit = ed.querySelector('.e-unit').value.trim();
+          var stage = ed.querySelector('.e-stage').value;
+          if (!name || !unit){ appToast('Name and unit are required.', 'error'); return; }
+          var patch = { name: name, unit: unit, stage: stage };
+          try {
+            if (ed.querySelector('.e-publish').checked){
+              if (stage !== 'finished'){ appToast('Only "finished" materials can be shown on the storefront.', 'error'); return; }
+              patch.catalogMeta = readMeta(ed, name);
+            } else {
+              patch.catalogMeta = null;
+            }
+          } catch(err){ appToast(err.message, 'error'); return; }
+          var saveBtn = this; saveBtn.disabled = true;
+          try {
+            await Backend.updateMaterial(mat.id, patch);
+            appToast('Saved ' + name, 'success');
+            reloadCurrentCard('materials');
+          } catch(err){ appToast('Failed: ' + err.message, 'error'); saveBtn.disabled = false; }
+        });
+      });
+    });
   }
 
-  body.querySelector('.mat-create-btn').addEventListener('click', async function(){
-    var name = body.querySelector('.mat-name').value.trim();
-    var unit = body.querySelector('.mat-unit').value.trim();
-    var stage = body.querySelector('.mat-stage').value;
-    var category = body.querySelector('.mat-category').value;
-    var desc = body.querySelector('.mat-desc').value.trim();
+  addCard.querySelector('.mat-create-btn').addEventListener('click', async function(){
+    var name = addCard.querySelector('.mat-name').value.trim();
+    var unit = addCard.querySelector('.mat-unit').value.trim();
+    var stage = addCard.querySelector('.mat-stage').value;
     if (!name || !unit){ appToast('Name and unit are required.', 'error'); return; }
     var reqBody = { businessId: bizId, name: name, unit: unit, stage: stage };
-    if (category || desc) reqBody.catalogMeta = { category: category || undefined, description: desc || undefined };
+    try {
+      if (addCard.querySelector('.mat-publish').checked){
+        if (stage !== 'finished'){ appToast('Only "finished" materials can be published — choose the Finished stage.', 'error'); return; }
+        reqBody.catalogMeta = readMeta(addCard, name);
+      }
+    } catch(err){ appToast(err.message, 'error'); return; }
+    var btn = this; btn.disabled = true;
     try {
       await Backend.createMaterial(reqBody);
       appToast('Material added.', 'success');
       reloadCurrentCard('materials');
-    } catch(err){ appToast('Failed: ' + err.message, 'error'); }
+    } catch(err){ appToast('Failed: ' + err.message, 'error'); btn.disabled = false; }
   });
 });
 </script>
@@ -946,8 +1625,19 @@ registerView('equity', async function(body){
           '<b style="display:block; margin-bottom:12px;">Partnerships</b>' +
           (partnerships.length === 0 ? '<p style="color:var(--text-muted); font-size:0.85rem;">None recorded yet.</p>' :
             '<table><tbody>' + partnerships.map(function(p){
-              return '<tr><td>'+escapeHtml(personName(p.personId))+'</td><td>'+p.ownershipPct+'%</td><td>$'+Number(p.capitalContributed||0).toLocaleString()+'</td></tr>';
+              return '<tr><td>'+escapeHtml(personName(p.personId))+'</td><td>'+p.ownershipPct+'%</td><td>'+Number(p.capitalContributed||0).toLocaleString()+'</td></tr>';
             }).join('') + '</tbody></table>') +
+        '</div>' +
+        '<div class="card glass" style="margin-bottom:16px;">' +
+          '<b style="display:block; margin-bottom:6px;">Add a partnership</b>' +
+          '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:12px;">Records who owns what share of this business. Profit splits are set separately by the allocation rule.</p>' +
+          '<div class="form-row"><label>Person</label><select class="pship-person"><option value="">Choose…</option>' +
+            people.map(function(p){ return '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + p.role + ')</option>'; }).join('') + '</select></div>' +
+          '<div class="form-grid">' +
+            '<div class="form-row"><label>Ownership %</label><input class="pship-pct" type="number" min="0" max="100" step="0.01" /></div>' +
+            '<div class="form-row"><label>Capital contributed</label><input class="pship-capital" type="number" min="0" step="0.01" /></div>' +
+          '</div>' +
+          '<button class="btn btn-primary pship-add-btn">Add partnership</button>' +
         '</div>' +
         '<div class="card glass">' +
           '<b style="display:block; margin-bottom:12px;">Current allocation rule</b>' +
@@ -969,6 +1659,21 @@ registerView('equity', async function(body){
         '<button class="btn btn-primary post-rule-btn">Post rule</button>' +
       '</div>' +
     '</div>';
+
+  body.querySelector('.pship-add-btn').addEventListener('click', async function(){
+    var personId = body.querySelector('.pship-person').value;
+    var pct = Number(body.querySelector('.pship-pct').value);
+    var capitalRaw = body.querySelector('.pship-capital').value;
+    if (!personId){ appToast('Choose a person.', 'error'); return; }
+    if (!(pct >= 0 && pct <= 100) || body.querySelector('.pship-pct').value === ''){ appToast('Ownership must be between 0 and 100.', 'error'); return; }
+    var already = partnerships.reduce(function(a, p){ return a + Number(p.ownershipPct || 0); }, 0);
+    if (already + pct > 100.0001){ appToast('That would take total ownership to ' + (Math.round((already + pct) * 100) / 100) + '% — it cannot exceed 100%.', 'error'); return; }
+    var req = { businessId: bizId, personId: personId, ownershipPct: pct };
+    if (capitalRaw !== '') req.capitalContributed = Number(capitalRaw);
+    var btn = this; btn.disabled = true;
+    try { await Backend.createPartnership(req); appToast('Partnership added.', 'success'); reloadCurrentCard('equity'); }
+    catch(err){ appToast('Could not add the partnership: ' + err.message, 'error'); btn.disabled = false; }
+  });
 
   /* ============ Allocation slider state + redistribution ============
      splitState: [{ id: personId, pct, locked }]. redistributeSplits()
@@ -1116,7 +1821,7 @@ registerView('inbox', async function(body){
   var conversations = await Backend.listConversations(bizId);
 
   body.innerHTML =
-    '<p style="color:var(--text-muted); font-size:0.9rem; margin:0 0 18px;">Consumer conversations. "Awaiting human" means a real payment token was redeemed — the customer proved they paid and said who they are.</p>' +
+    '<p style="color:var(--text-muted); font-size:0.9rem; margin:0 0 18px;">Consumer conversations. "Awaiting human" means a customer needs a person: they redeemed an order code, asked for someone, raised a complaint or a pricing question, or the AI wasn\'t sure. Eligible staff are notified (bell icon, and by email when email is set up).</p>' +
     '<div style="display:grid; grid-template-columns:300px 1fr; gap:0; border:1px solid var(--glass-border); border-radius:14px; overflow:hidden; min-height:440px;">' +
       '<div class="conv-list" style="border-right:1px solid var(--glass-border); overflow-y:auto; max-height:560px; background:rgba(255,255,255,0.02);"></div>' +
       '<div class="conv-thread" style="padding:18px;"><div class="empty-state">Select a conversation.</div></div>' +
@@ -1128,11 +1833,13 @@ registerView('inbox', async function(body){
     return;
   }
   var STATUS_PILL = { ai: 'pill-muted', awaiting_human: 'pill-warn', staff: 'pill-good' };
+  var REASON_LABEL = { visitor_token_redeemed: 'Customer redeemed an order code', pricing: 'Pricing or custom quote', complaint: 'Complaint or problem', low_confidence: 'The AI was not sure', visitor_requested: 'Customer asked for a person' };
   listEl.innerHTML = conversations.map(function(c){
-    return '<div class="conv-item" data-id="'+c.id+'" style="padding:13px 15px; border-bottom:1px solid var(--glass-border); cursor:pointer; transition:background 0.2s var(--spring-soft);">' +
+    return '<div class="conv-item' + (c.handledBy === 'awaiting_human' ? ' waiting' : '') + '" data-id="'+c.id+'" style="padding:13px 15px; border-bottom:1px solid var(--glass-border); cursor:pointer; transition:background 0.2s var(--spring-soft);">' +
       '<div style="font-weight:500; font-size:0.9rem; margin-bottom:4px;">' + escapeHtml(c.visitorDisplayName || c.subject || 'Anonymous visitor') + '</div>' +
       '<span class="pill ' + (STATUS_PILL[c.handledBy]||'pill-muted') + '">' + c.handledBy.replace('_',' ') + '</span>' +
       (c.identified ? ' <span class="pill pill-accent">identified</span>' : '') +
+      (c.handoffReason ? '<div style="font-size:0.74rem; color:var(--text-muted); margin-top:4px;">' + escapeHtml(REASON_LABEL[c.handoffReason] || '') + '</div>' : '') +
     '</div>';
   }).join('');
 
@@ -1154,6 +1861,7 @@ registerView('inbox', async function(body){
         '<span class="pill ' + (STATUS_PILL[data.conversation.handledBy]||'pill-muted') + '">' + data.conversation.handledBy.replace('_',' ') + '</span>' +
         (data.conversation.handledBy === 'awaiting_human' ? '<button class="btn btn-primary claim-btn">Claim this conversation</button>' : '') +
       '</div>' +
+      (data.conversation.handoffReason ? '<p style="font-size:0.82rem; color:var(--text-muted); margin:0 0 12px;">Why a person is needed: ' + escapeHtml(REASON_LABEL[data.conversation.handoffReason] || data.conversation.handoffReason) + '</p>' : '') +
       (routing ? '<div class="card glass" style="margin-bottom:14px; font-size:0.85rem; padding:14px;"><b>Suggested (by declared region, not distance)</b><br/>' +
         routing.candidates.map(function(c){ return escapeHtml(c.name) + (c.exactRegionMatch?' — exact region match':c.handlesAnywhere?' — handles anywhere':' — no region match'); }).join('<br/>') +
         '</div>' : '') +
@@ -1186,6 +1894,8 @@ registerView('inbox', async function(body){
 /* ============ People & Integrations ============ */
 registerView('people', async function(body){
   var bizId = appState.currentBusinessId;
+  var isOwner = appState.auth.person.role === 'owner';
+  var myId = appState.auth.person.personId;
   var people = [];
   try { people = await Backend.listPeople(); } catch(e){}
   var myPaths = [];
@@ -1198,8 +1908,18 @@ registerView('people', async function(body){
         '<div class="card glass" style="margin-bottom:16px;">' +
           '<b style="display:block; margin-bottom:12px;">Everyone in this holding company</b>' +
           (people.length===0 ? '<p style="color:var(--text-muted); font-size:0.85rem;">None found.</p>' :
-            '<table><tbody>' + people.map(function(p){ return '<tr><td>'+escapeHtml(p.name)+'</td><td><span class="pill pill-muted">'+p.role+'</span></td><td style="color:var(--text-muted); font-size:0.82rem;">'+escapeHtml(p.email)+'</td></tr>'; }).join('') + '</tbody></table>') +
+            '<table><tbody>' + people.map(function(p){ return '<tr><td>'+escapeHtml(p.name)+'</td><td><span class="pill pill-muted">'+p.role+'</span></td><td style="color:var(--text-muted); font-size:0.82rem;">'+escapeHtml(p.email)+'</td>' + (isOwner && p.id !== myId ? '<td><button class="btn invite-btn" data-id="'+p.id+'" data-name="'+escapeHtml(p.name)+'" title="Email a link to choose a password">Invite</button></td>' : '<td></td>') + '</tr>'; }).join('') + '</tbody></table>') +
         '</div>' +
+        (isOwner ? '<div class="card glass" style="margin-bottom:16px;">' +
+          '<b style="display:block; margin-bottom:6px;">Add a person</b>' +
+          '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:12px;">They receive an email with a link to choose their own password. Until they do, they cannot sign in.</p>' +
+          '<div class="form-grid">' +
+            '<div class="form-row"><label>Name</label><input class="np-name" /></div>' +
+            '<div class="form-row"><label>Email</label><input class="np-email" type="email" /></div>' +
+          '</div>' +
+          '<div class="form-row"><label>Role</label><select class="np-role"><option value="worker">Worker</option><option value="partner">Partner</option><option value="owner">Owner</option></select></div>' +
+          '<button class="btn btn-primary add-person-btn">Add and invite</button>' +
+        '</div>' : '') +
         '<div class="card glass">' +
           '<b style="display:block; margin-bottom:12px;">My location &amp; coverage</b>' +
           '<p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:12px;">Used to route escalated chats to whoever\'s actually covering that customer\'s declared region.</p>' +
@@ -1224,12 +1944,15 @@ registerView('people', async function(body){
         '<div class="form-row"><label>API key</label><input class="int-key" type="password" placeholder="sk-…" /></div>' +
         '<button class="btn btn-primary save-integration-btn" style="margin-bottom:20px;">Save key</button>' +
         '<div style="border-top:1px solid var(--glass-border); padding-top:14px; margin-bottom:20px;">' +
-          '<b style="display:block; margin-bottom:4px; font-size:0.88rem;">Guide preview depth</b>' +
-          '<p style="color:var(--text-muted); font-size:0.76rem; margin-bottom:12px;">A LOCAL display setting only — how many chunks this screen shows you after ingesting, for review. The backend always retrieves a fixed number for the live AI receptionist; this slider does not change that.</p>' +
+          '<b style="display:block; margin-bottom:4px; font-size:0.88rem;">AI retrieval depth</b>' +
+          '<p style="color:var(--text-muted); font-size:0.76rem; margin-bottom:12px;">How many pieces of your ingested guides the AI receptionist reads when it answers a visitor (1–20). More context can improve answers but makes replies slower and costlier. This is saved to the server and used for every visitor chat.</p>' +
           '<div class="eq-slider-col">' +
             '<div class="eq-slider" id="preview-depth-slider"><div class="eq-fill"></div><div class="eq-thumb"></div></div>' +
             '<div class="eq-value-readout"></div>' +
-            '<div class="eq-label">chunks shown</div>' +
+            '<div class="eq-label">chunks per reply</div>' +
+          '</div>' +
+          '<div class="check-row"><input type="checkbox" class="ai-auto-escalate" id="ai-auto-escalate" checked /><label for="ai-auto-escalate">Hand the chat to a person automatically when a visitor negotiates price, complains, or the AI isn\'t sure</label></div>' +
+          '<div class="ai-settings-status" role="status" style="font-size:0.78rem; color:var(--text-muted); min-height:1.2em;"></div>' +
           '</div>' +
         '</div>' +
         '<div style="border-top:1px solid var(--glass-border); padding-top:14px;">' +
@@ -1242,7 +1965,59 @@ registerView('people', async function(body){
       '</div>' +
     '</div>';
 
-  var previewDepth = createEqSlider(body.querySelector('#preview-depth-slider'), { min: 1, max: 10, value: 3 });
+  // Retrieval depth and auto-escalation are real, server-side settings
+  // (PUT /businesses/:id/ai-settings). Workers can see them but not change them.
+  var canEditAi = appState.auth.person.role !== 'worker';
+  var aiStatus = body.querySelector('.ai-settings-status');
+  var aiTimer = null;
+  async function saveAiSettings(patch){
+    aiStatus.textContent = 'Saving…';
+    try {
+      var r = await Backend.putAiSettings(bizId, patch);
+      aiStatus.textContent = 'Saved — the AI now reads ' + r.retrievalDepth + ' chunks per reply; automatic hand-off is ' + (r.autoEscalation ? 'on' : 'off') + '.';
+    } catch(err){
+      aiStatus.textContent = err.status === 403 ? 'Only owners and partners can change this.' : 'Could not save: ' + err.message;
+    }
+  }
+  var previewDepth = createEqSlider(body.querySelector('#preview-depth-slider'), {
+    min: 1, max: 20, value: 8,
+    onChange: function(v){
+      if (!canEditAi) return;
+      clearTimeout(aiTimer);
+      aiTimer = setTimeout(function(){ saveAiSettings({ retrievalDepth: Math.round(v) }); }, 600);
+    }
+  });
+  var autoBox = body.querySelector('.ai-auto-escalate');
+  autoBox.disabled = !canEditAi;
+  autoBox.addEventListener('change', function(){ saveAiSettings({ autoEscalation: autoBox.checked }); });
+  if (bizId){
+    Backend.getAiSettings(bizId).then(function(r){ previewDepth.setValue(r.retrievalDepth); autoBox.checked = r.autoEscalation; })
+      .catch(function(){ aiStatus.textContent = 'Could not load the current setting.'; });
+  }
+
+  // ---- invite / add people (owners)
+  body.querySelectorAll('.invite-btn').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      btn.disabled = true;
+      try { await Backend.invitePerson(btn.getAttribute('data-id')); appToast('Invitation emailed to ' + btn.getAttribute('data-name') + '.', 'success'); }
+      catch(err){ appToast('Could not invite: ' + err.message, 'error'); }
+      finally { setTimeout(function(){ btn.disabled = false; }, 4000); }
+    });
+  });
+  var addPersonBtn = body.querySelector('.add-person-btn');
+  if (addPersonBtn) addPersonBtn.addEventListener('click', async function(){
+    var name = body.querySelector('.np-name').value.trim();
+    var email = body.querySelector('.np-email').value.trim();
+    var role = body.querySelector('.np-role').value;
+    if (!name || !email){ appToast('Name and email are required.', 'error'); return; }
+    addPersonBtn.disabled = true;
+    var created;
+    try { created = await Backend.createPerson({ name: name, email: email, role: role }); }
+    catch(err){ appToast('Could not add the person: ' + err.message, 'error'); addPersonBtn.disabled = false; return; }
+    try { await Backend.invitePerson(created.id); appToast(name + ' was added and an invitation was emailed.', 'success'); }
+    catch(err){ appToast(name + ' was added, but the invitation could not be sent: ' + err.message, 'error'); }
+    reloadCurrentCard('people');
+  });
 
   body.querySelector('.save-loc-btn').addEventListener('click', async function(){
     var lat = body.querySelector('.loc-lat').value;

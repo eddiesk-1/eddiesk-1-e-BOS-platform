@@ -27,6 +27,17 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not set — see .env.example');
 }
 
+// DEVELOPMENT ONLY. This script creates accounts with a password that is
+// printed in plain text and published in the source. Running it against a
+// production database would create publicly known logins. It refuses unless
+// you explicitly, deliberately override it.
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED_IN_PRODUCTION !== 'yes-i-understand-this-creates-known-passwords') {
+  throw new Error(
+    'Refusing to seed: NODE_ENV=production. The seed accounts use a publicly known password. ' +
+      'Use real signup (POST /auth/signup) instead. See DEPLOY.md "Creating the first account".',
+  );
+}
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: pgSsl() });
 
 async function main() {
@@ -70,6 +81,12 @@ async function main() {
       await client.query(
         `INSERT INTO credentials (person_id, password_hash) VALUES ($1, $2)`,
         [row.id, passwordHash],
+      );
+      // Demo accounts skip email verification (migration 019 created their
+      // account_security row, unverified, via the people trigger).
+      await client.query(
+        `UPDATE account_security SET email_verified_at = now() WHERE person_id = $1`,
+        [row.id],
       );
 
       if (person.role === 'partner') {

@@ -1,0 +1,62 @@
+# Files changed in 0.0.6 (relative to the 0.0.5 archive)
+
+## Modified (17)
+  DEPLOY.md
+  backend/.env.example
+  backend/README.md
+  backend/package.json
+  backend/src/lib/db.ts
+  backend/src/plugins/auth.ts
+  backend/src/routes/ai.ts
+  backend/src/routes/auth.ts
+  backend/src/routes/conversations.ts
+  backend/src/routes/guideIngestion.ts
+  backend/src/routes/materials.ts
+  backend/src/routes/productStream.ts
+  backend/src/scripts/seed.ts
+  backend/src/server.ts
+  backend/tsconfig.json
+  frontend/e-bos-backoffice.html
+  frontend/e-bos-landing.html
+
+## Added (37)
+  RELEASE-0.0.6.md
+  backend/migrations/019_accounts_and_auth.js
+  backend/migrations/020_chat_ai_and_notifications.js
+  backend/migrations/021_payments.js
+  backend/src/bootstrap.ts
+  backend/src/lib/chatPrompt.ts
+  backend/src/lib/email.ts
+  backend/src/lib/embeddings.ts
+  backend/src/lib/env.ts
+  backend/src/lib/escalation.ts
+  backend/src/lib/guideSearch.ts
+  backend/src/lib/handoff.ts
+  backend/src/lib/health.ts
+  backend/src/lib/http.ts
+  backend/src/lib/limits.ts
+  backend/src/lib/lockout.ts
+  backend/src/lib/password.ts
+  backend/src/lib/passwordHash.ts
+  backend/src/lib/paystack.ts
+  backend/src/lib/rateLimit.ts
+  backend/src/lib/regionInference.ts
+  backend/src/lib/tokens.ts
+  backend/src/lib/validate.ts
+  backend/src/routes/accounts.ts
+  backend/src/routes/aiSettings.ts
+  backend/src/routes/checkout.ts
+  backend/src/routes/notifications.ts
+  backend/src/routes/webhooks.ts
+  backend/src/scripts/verifyEmbeddings.ts
+  backend/src/test/chat.test.ts
+  backend/src/test/integration.test.ts
+  backend/src/test/migrations.test.ts
+  backend/src/test/run.ts
+  backend/src/test/unit.test.ts
+  backend/tsconfig.test.json
+  docs/AUDIT-0.0.6.md
+  tools/browser-test.mts
+
+## Removed (0)
+  (none)

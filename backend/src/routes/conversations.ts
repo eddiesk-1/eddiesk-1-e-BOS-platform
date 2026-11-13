@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { withVisitorAccess } from '../lib/publicDb.js';
 import { withDb } from '../plugins/tenantContext.js';
+import { limits } from '../lib/limits.js';
+import { byIp, rateLimitHook } from '../lib/rateLimit.js';
+import { requestHandoff } from '../lib/handoff.js';
 
 /**
  * Consumer↔sales chat. The visitor-facing half of this file has NO JWT
@@ -48,6 +51,8 @@ interface ConversationRow {
   last_message_at: Date;
   handled_by: 'ai' | 'awaiting_human' | 'staff';
   claimed_by_person_id: string | null;
+  handoff_reason?: string | null;
+  handoff_at?: Date | null;
 }
 
 interface MessageRow {
@@ -72,6 +77,8 @@ function conversationShape(row: ConversationRow) {
     lastMessageAt: row.last_message_at,
     handledBy: row.handled_by,
     claimedByPersonId: row.claimed_by_person_id,
+    handoffReason: row.handoff_reason ?? null,
+    handoffAt: row.handoff_at ?? null,
   };
 }
 
@@ -125,7 +132,7 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{
     Body: { businessId?: string; message?: string; subject?: string; visitorDisplayName?: string };
-  }>('/conversations', async (request, reply) => {
+  }>('/conversations', { preHandler: [rateLimitHook(limits.conversationStart, byIp)] }, async (request, reply) => {
     const { businessId, message, subject, visitorDisplayName } = request.body ?? {};
     if (!businessId || !isValidUuid(businessId)) {
       reply.code(400).send({ error: 'bad_request', message: 'businessId is required and must be a valid id' });
@@ -226,6 +233,7 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{ Params: { id: string }; Body: { message?: string } }>(
     '/conversations/:id/messages',
+    { preHandler: [rateLimitHook(limits.chatMessage, byIp)] },
     async (request, reply) => {
       const token = getVisitorToken(request);
       if (!token) {
@@ -290,6 +298,7 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{ Params: { id: string }; Body: { name?: string; email?: string } }>(
     '/conversations/:id/identify',
+    { preHandler: [rateLimitHook(limits.identify, byIp)] },
     async (request, reply) => {
       const token = getVisitorToken(request);
       if (!token) {
@@ -344,6 +353,7 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{ Params: { id: string }; Body: { transactionToken?: string } }>(
     '/conversations/:id/redeem-token',
+    { preHandler: [rateLimitHook(limits.identify, byIp)] },
     async (request, reply) => {
       const token = getVisitorToken(request);
       if (!token) {
@@ -383,6 +393,15 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
         reply.code(403).send({ error: 'forbidden', message: 'Token could not be redeemed', reason: outcome.reason });
         return;
       }
+      // The database function already moved the conversation to
+      // awaiting_human. This is the step that actually tells a person:
+      // in-app notifications for eligible staff plus an email. A failure
+      // here must not undo or fail the redemption itself.
+      try {
+        await requestHandoff(request.params.id, token, 'visitor_token_redeemed', request.log);
+      } catch (err) {
+        request.log.error({ err }, 'handoff notification failed after token redemption');
+      }
       reply.send({ escalated: true });
     },
   );
@@ -405,7 +424,7 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
         return;
       }
       const result = await request.db.query(
-        `SELECT id, business_id, kind, counterparty_id, visitor_display_name, subject, created_at, last_message_at, handled_by, claimed_by_person_id
+        `SELECT id, business_id, kind, counterparty_id, visitor_display_name, subject, created_at, last_message_at, handled_by, claimed_by_person_id, handoff_reason, handoff_at
          FROM conversations
          WHERE business_id = $1 AND kind = 'consumer'
          ORDER BY last_message_at DESC`,
@@ -427,7 +446,7 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     withDb(async (request, reply) => {
       const convResult = await request.db.query(
-        `SELECT id, business_id, kind, counterparty_id, visitor_display_name, subject, created_at, last_message_at, handled_by, claimed_by_person_id
+        `SELECT id, business_id, kind, counterparty_id, visitor_display_name, subject, created_at, last_message_at, handled_by, claimed_by_person_id, handoff_reason, handoff_at
          FROM conversations WHERE id = $1`,
         [request.params.id],
       );

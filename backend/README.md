@@ -1,5 +1,12 @@
 # e-BOS Backend
 
+> **0.0.6 note.** This README describes the original 0.0.5 design in detail and is still accurate for
+> tenancy, RLS and the catalog. Where 0.0.6 changed behaviour — login, sessions, the AI reply path,
+> handoff notifications, checkout, security headers, tests — read `../RELEASE-0.0.6.md`,
+> `../docs/AUDIT-0.0.6.md` and `../DEPLOY.md` first; they win where they disagree with the sections below
+> (notably "The reception-salesperson", which describes the old first-8-chunks retrieval).
+
+
 Backend foundation for e-BOS: one holding company runs multiple businesses,
 each seeded from an uploaded operating guide, with partners holding equity
 splits and workers executing tasks. This service implements the shared

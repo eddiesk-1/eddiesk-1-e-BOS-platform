@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { startupWarnings } from './bootstrap.js';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -24,10 +25,28 @@ import productStreamRoutes from './routes/productStream.js';
 import aiRoutes from './routes/ai.js';
 import conversationRoutes from './routes/conversations.js';
 import guideIngestionRoutes from './routes/guideIngestion.js';
+import accountRoutes from './routes/accounts.js';
+import notificationRoutes from './routes/notifications.js';
+import aiSettingsRoutes from './routes/aiSettings.js';
+import checkoutRoutes from './routes/checkout.js';
+import webhookRoutes from './routes/webhooks.js';
+import { closePool } from './lib/db.js';
+import { publicPool } from './lib/publicDb.js';
+import { checkReadiness, ownerBypassesRls } from './lib/health.js';
+import { limits } from './lib/limits.js';
+import { securityHeaders } from './lib/http.js';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 const fastify = Fastify({
+  // Behind Render's proxy request.ip is the proxy unless this is on, which
+  // would put every visitor in one rate-limit bucket. Opt out with
+  // TRUST_PROXY=false if you run this directly on the internet.
+  trustProxy: process.env.TRUST_PROXY ? process.env.TRUST_PROXY === 'true' : Boolean(process.env.RENDER),
   logger: {
     level: process.env.LOG_LEVEL ?? 'info',
+    // Credentials never reach the logs, even if request logging is widened.
+    redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-visitor-token"]'],
     transport:
       process.env.NODE_ENV === 'production'
         ? undefined
@@ -61,6 +80,31 @@ const fastify = Fastify({
 await fastify.register(cors, {
   origin: process.env.ALLOWED_ORIGIN || false,
   credentials: true,
+});
+
+// Security headers on EVERY response (API, static HTML, errors).
+// JSON responses are also marked no-store: they can contain one person's
+// private data and must not be kept by shared caches.
+const staticSecurityHeaders = securityHeaders(isProduction);
+fastify.addHook('onSend', async (_request, reply, payload) => {
+  for (const [name, value] of Object.entries(staticSecurityHeaders)) reply.header(name, value);
+  const type = reply.getHeader('content-type');
+  if (typeof type === 'string' && type.startsWith('application/json')) reply.header('Cache-Control', 'no-store');
+  return payload;
+});
+
+// A coarse per-IP ceiling for the whole service; route-specific limits in
+// lib/limits.ts are much tighter where it matters. Health checks and
+// payment webhooks are exempt (Paystack retries from a small set of IPs).
+fastify.addHook('onRequest', async (request, reply) => {
+  const url = request.url;
+  if (url === '/health' || url === '/ready' || url.startsWith('/webhooks/')) return;
+  const result = limits.global.check(request.ip);
+  if (!result.allowed) {
+    reply.header('Retry-After', String(result.retryAfterSec));
+    return reply.code(429).send({ error: 'rate_limited', message: 'Too many requests. Please slow down.' });
+  }
+  return;
 });
 
 /**
@@ -145,6 +189,18 @@ fastify.setErrorHandler((error, request, reply) => {
     return;
   }
 
+  // Framework-level client errors (malformed JSON, oversized body, wrong
+  // content type) carry their own 4xx status. They used to fall through to
+  // the 500 below, which told clients the SERVER was broken.
+  const clientStatus = (error as { statusCode?: number }).statusCode;
+  if (typeof clientStatus === 'number' && clientStatus >= 400 && clientStatus < 500) {
+    reply.code(clientStatus).send({
+      error: 'bad_request',
+      message: clientStatus === 413 ? 'Request body is too large' : 'The request could not be processed',
+    });
+    return;
+  }
+
   request.log.error(error);
   reply.code(500).send({ error: 'internal_error', message: 'An unexpected error occurred' });
 });
@@ -174,6 +230,13 @@ await fastify.register(productStreamRoutes);
 await fastify.register(aiRoutes);
 await fastify.register(conversationRoutes);
 await fastify.register(guideIngestionRoutes);
+await fastify.register(accountRoutes);
+await fastify.register(notificationRoutes);
+await fastify.register(aiSettingsRoutes);
+await fastify.register(checkoutRoutes);
+// Own plugin: it swaps in a raw-body JSON parser, which Fastify scopes to
+// the plugin that declares it (see routes/webhooks.ts).
+await fastify.register(webhookRoutes);
 
 /**
  * Serves the two frontend files directly from THIS process — the
@@ -195,7 +258,19 @@ await fastify.register(fastifyStatic, {
   root: path.join(__dirname, 'public'),
 });
 
+// The public landing page lives at "/".
+fastify.get('/', async (_request, reply) => reply.sendFile('e-bos-landing.html'));
+
+// Liveness: the process is up. Says nothing about dependencies.
 fastify.get('/health', async () => ({ status: 'ok' }));
+
+// Readiness: the process can actually serve — both database pools answer.
+// Point Render's health check here. The body is deliberately bare: no
+// hostnames, no error text, no role names.
+fastify.get('/ready', async (_request, reply) => {
+  const r = await checkReadiness();
+  reply.code(r.ready ? 200 : 503).send({ status: r.ready ? 'ready' : 'unavailable' });
+});
 
 const port = Number(process.env.PORT ?? 3000);
 try {
@@ -204,3 +279,38 @@ try {
   fastify.log.error(err);
   process.exit(1);
 }
+
+for (const w of startupWarnings) fastify.log.warn({ variable: w.variable }, w.message);
+
+// SECURITY DEFINER functions only see rows if the migration user bypasses
+// RLS (superuser or BYPASSRLS). Say so loudly at startup rather than
+// letting chat, AI replies and checkout fail mysteriously later.
+const bypass = await ownerBypassesRls();
+if (bypass === false) {
+  fastify.log.error(
+    'Database owner does not bypass row-level security: the SECURITY DEFINER functions (identify, redeem, AI chat, checkout) will not see any rows. See DEPLOY.md "Database role requirement".',
+  );
+} else if (bypass === null) {
+  fastify.log.warn('Could not run the database owner/RLS self-check (is migration 019 applied?).');
+}
+
+// Graceful shutdown: stop accepting connections, let in-flight requests
+// finish, then close the pools. Render sends SIGTERM on every deploy.
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  fastify.log.info({ signal }, 'shutting down');
+  const force = setTimeout(() => process.exit(1), 10_000);
+  force.unref();
+  try {
+    await fastify.close();
+    await Promise.allSettled([closePool(), publicPool.end()]);
+    process.exit(0);
+  } catch (err) {
+    fastify.log.error(err, 'error during shutdown');
+    process.exit(1);
+  }
+}
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));

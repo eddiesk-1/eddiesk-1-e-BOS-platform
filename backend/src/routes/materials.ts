@@ -7,6 +7,8 @@ interface CatalogMetaInput {
   icon?: string;
   category?: string;
   description?: string;
+  price?: number | null;
+  currency?: string | null;
   media?: { image?: string | null; video?: string | null };
 }
 
@@ -55,6 +57,42 @@ function validateCatalogMeta(
       valid: false,
       reason: `catalogMeta.category must be one of ${VALID_STREAM_CATEGORIES.join(', ')}`,
     };
+  }
+  // price/currency make an item purchasable through checkout. Optional: an
+  // item without a price is browse-and-enquire only. Money is validated as
+  // a positive amount with at most 2 decimals; checkout re-reads it from
+  // the database and does all arithmetic in SQL numeric (migration 021).
+  if (m.price !== undefined && m.price !== null) {
+    const price = m.price;
+    if (
+      typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price > 999_999_999 ||
+      Math.round(price * 100) / 100 !== price
+    ) {
+      return { valid: false, reason: 'catalogMeta.price must be a positive amount with at most 2 decimal places' };
+    }
+  }
+  if (m.currency !== undefined && m.currency !== null && !(typeof m.currency === 'string' && /^[A-Z]{3}$/.test(m.currency))) {
+    return { valid: false, reason: 'catalogMeta.currency must be a 3-letter code such as GHS' };
+  }
+  // Owner-supplied media is loaded into the public storefront, so only
+  // https links are accepted (no javascript:, data:, or plain http).
+  if (m.media !== undefined && m.media !== null) {
+    if (typeof m.media !== 'object' || Array.isArray(m.media)) {
+      return { valid: false, reason: 'catalogMeta.media must be an object' };
+    }
+    for (const key of ['image', 'video'] as const) {
+      const link = (m.media as Record<string, unknown>)[key];
+      if (link !== undefined && link !== null && link !== '' &&
+          !(typeof link === 'string' && link.length <= 2000 && /^https:\/\/\S+$/i.test(link))) {
+        return { valid: false, reason: `catalogMeta.media.${key} must be an https:// link` };
+      }
+    }
+  }
+  if (m.icon !== undefined && m.icon !== null && !(typeof m.icon === 'string' && m.icon.length <= 16)) {
+    return { valid: false, reason: 'catalogMeta.icon must be a short string (one emoji)' };
+  }
+  if (m.description !== undefined && m.description !== null && !(typeof m.description === 'string' && m.description.length <= 2000)) {
+    return { valid: false, reason: 'catalogMeta.description must be text of at most 2000 characters' };
   }
   return { valid: true, meta: meta as CatalogMetaInput };
 }

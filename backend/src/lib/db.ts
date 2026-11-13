@@ -107,3 +107,43 @@ export async function withTenantScope<T>(
     client.release();
   }
 }
+
+/**
+ * Runs `fn` in a transaction as app_owner_partner WITHOUT any tenant
+ * variables set. This is for the pre-authentication auth_* SECURITY
+ * DEFINER functions (migration 019) — resolving which account an email
+ * belongs to, consuming a verification/reset token, counting failed
+ * logins — where no tenant exists yet. It can read no tenant table by
+ * itself: every row-level-security policy needs app.holding_company_id.
+ * Callers that need to read a specific person's row set that variable
+ * explicitly, from a value the database itself returned (never from the
+ * request body):
+ *
+ *   await client.query(`SELECT set_config('app.holding_company_id', $1, true)`, [hcId]);
+ */
+export async function withAuthFunctions<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET ROLE app_owner_partner');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    await client.query('RESET ROLE').catch(() => {});
+    client.release();
+  }
+}
+
+/** Points the current transaction's tenant variable at one holding company. */
+export async function scopeToHoldingCompany(client: PoolClient, holdingCompanyId: string): Promise<void> {
+  await client.query(`SELECT set_config('app.holding_company_id', $1, true)`, [holdingCompanyId]);
+}
+
+/** Closes every pool; used by graceful shutdown. */
+export async function closePool(): Promise<void> {
+  await pool.end();
+}

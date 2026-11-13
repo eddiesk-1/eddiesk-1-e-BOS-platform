@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#E8EDF7" />
+<script>
+/* Apply a saved light/dark choice before first paint (no flash). */
+(function(){ try { var t = localStorage.getItem('ebos-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+</script>
 <title>AI·BOS — The Stream</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..700;1,9..144,400..600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   :root{
     --bg:#0A0D12; --bg-panel:#12161E; --bg-field:#171C26;
@@ -200,7 +203,276 @@
     font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text-muted);
     background:rgba(18,22,30,0.55); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px;
     padding:6px 12px; opacity:0.28; transition:opacity .3s ease; pointer-events:none; }
+
+  /* --- 0.0.6: registration, status and checkout dialogs --- */
+  #modal-status input, #modal-checkout input, #modal-checkout select{
+    width:100%; background:var(--bg-field); border:1px solid var(--line-strong); border-radius:10px; padding:11px 13px;
+    font-size:14px; color:var(--text); }
+  #modal-status input::placeholder, #modal-checkout input::placeholder, #modal-create input::placeholder{ color:var(--text-faint); }
+  .field-hint{ font-size:11.5px; color:var(--text-faint); margin-top:5px; line-height:1.45; }
+  .field-error{ font-size:12px; color:#E39A8C; margin-top:5px; line-height:1.4; }
+  .form-error{ font-size:12.5px; color:#E39A8C; margin-top:12px; line-height:1.45; }
+  .linklike{ background:none; border:none; padding:6px 2px; color:var(--text-muted); text-decoration:underline; font-size:13px; cursor:pointer; }
+  .detail-price{ font-size:22px; font-weight:700; margin:6px 0 2px; letter-spacing:-0.01em; }
+  #checkout-total{ font-size:16px; font-weight:700; margin-top:16px; }
+  #status-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+  #status-actions a, #status-actions button{ padding:11px 16px; border-radius:11px; border:1px solid var(--line-strong); background:transparent;
+    color:var(--text); font-size:13.5px; font-weight:700; cursor:pointer; text-decoration:none; }
+  #status-actions .primary{ background:var(--text); color:var(--bg); border-color:transparent; }
+  #modal-create{ max-height:92vh; overflow-y:auto; }
 </style>
+<style id="liquid-glass">
+/* =====================================================================
+   LIQUID GLASS DESIGN SYSTEM (0.0.6)
+   Floating, pill-shaped, translucent surfaces in the spirit of the iOS
+   Control Center / Home Screen: a soft "wallpaper" behind, glass on top.
+   White-themed by default, with a dark mode that follows the device
+   (prefers-color-scheme) unless the person picks one with the sun/moon
+   button (remembered in localStorage as "ebos-theme").
+   Everything below is tokens; components only reference var(--…).
+   ===================================================================== */
+:root{
+  color-scheme: light;
+  --bg:#E8EDF7; --bg-panel:rgba(255,255,255,0.58); --bg-field:rgba(255,255,255,0.58);
+  --line:rgba(14,19,32,0.10); --line-strong:rgba(14,19,32,0.17);
+  --text:#0E1320; --text-muted:rgba(14,19,32,0.70); --text-faint:rgba(14,19,32,0.60);
+  --accent:#0B66DB; --accent-fill:#0B66DB; --accent-top:#3C90F5; --accent-glow:rgba(11,102,219,0.32);
+  --good:#1E9A52; --warn:#C9680B; --bad:#E5484D;
+  --ink-bad:#B42318; --ink-good:#17713C; --ink-warn:#9A4E06; --ink-ai:#5B3FC4; --ink-wait:#855400;
+  --glass-fill:rgba(255,255,255,0.46); --glass-fill-raised:rgba(255,255,255,0.64);
+  --glass-border:rgba(255,255,255,0.80); --glass-edge:rgba(20,30,60,0.10);
+  --glass-shadow:0 18px 50px rgba(32,44,90,0.16), 0 3px 10px rgba(32,44,90,0.07);
+  --glass-hi:inset 0 1.5px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.40);
+  --sheen:rgba(255,255,255,0.52);
+  --glass-blur:30px; --glass-blur-heavy:44px;
+  --field:rgba(255,255,255,0.66); --field-focus:rgba(255,255,255,0.94); --hover:rgba(14,19,32,0.06);
+  --solid:#F4F7FC;
+  --wall-1:#9CC4FF; --wall-2:#D2B4FF; --wall-3:#FFD2B4; --wall-opacity:0.9;
+  --scrim:rgba(222,230,246,0.45); --fade:rgba(232,237,247,0.90);
+  --canvas-ring:#0E1320; --canvas-shadow:rgba(32,44,90,0.30);
+  --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230E1320' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  --radius:28px; --radius-sm:18px;
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#07090F; --bg-panel:rgba(30,34,50,0.58); --bg-field:rgba(255,255,255,0.08);
+  --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.19);
+  --text:#F3F5FA; --text-muted:rgba(243,245,250,0.72); --text-faint:rgba(243,245,250,0.50);
+  --accent:#58A8FF; --accent-fill:#1F6FE5; --accent-top:#4B9BFF; --accent-glow:rgba(88,168,255,0.40);
+  --good:#4FB36A; --warn:#F0924A; --bad:#FF6B67;
+  --ink-bad:#FFB3B0; --ink-good:#8FD69B; --ink-warn:#F5B27A; --ink-ai:#C9BDF5; --ink-wait:#E9CE7C;
+  --glass-fill:rgba(34,39,58,0.44); --glass-fill-raised:rgba(48,55,80,0.54);
+  --glass-border:rgba(255,255,255,0.18); --glass-edge:rgba(0,0,0,0.40);
+  --glass-shadow:0 20px 56px rgba(0,0,0,0.55), 0 3px 10px rgba(0,0,0,0.30);
+  --glass-hi:inset 0 1.5px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(255,255,255,0.05);
+  --sheen:rgba(255,255,255,0.12);
+  --field:rgba(255,255,255,0.09); --field-focus:rgba(255,255,255,0.15); --hover:rgba(255,255,255,0.08);
+  --solid:#161A27;
+  --wall-1:#2548B8; --wall-2:#6B33C8; --wall-3:#0E8F80; --wall-opacity:0.55;
+  --scrim:rgba(0,0,0,0.52); --fade:rgba(7,9,15,0.90);
+  --canvas-ring:#F3F5FA; --canvas-shadow:rgba(0,0,0,0.55);
+  --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F3F5FA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#07090F; --bg-panel:rgba(30,34,50,0.58); --bg-field:rgba(255,255,255,0.08);
+    --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.19);
+    --text:#F3F5FA; --text-muted:rgba(243,245,250,0.72); --text-faint:rgba(243,245,250,0.50);
+    --accent:#58A8FF; --accent-fill:#1F6FE5; --accent-top:#4B9BFF; --accent-glow:rgba(88,168,255,0.40);
+    --good:#4FB36A; --warn:#F0924A; --bad:#FF6B67;
+    --ink-bad:#FFB3B0; --ink-good:#8FD69B; --ink-warn:#F5B27A; --ink-ai:#C9BDF5; --ink-wait:#E9CE7C;
+    --glass-fill:rgba(34,39,58,0.44); --glass-fill-raised:rgba(48,55,80,0.54);
+    --glass-border:rgba(255,255,255,0.18); --glass-edge:rgba(0,0,0,0.40);
+    --glass-shadow:0 20px 56px rgba(0,0,0,0.55), 0 3px 10px rgba(0,0,0,0.30);
+    --glass-hi:inset 0 1.5px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(255,255,255,0.05);
+    --sheen:rgba(255,255,255,0.12);
+    --field:rgba(255,255,255,0.09); --field-focus:rgba(255,255,255,0.15); --hover:rgba(255,255,255,0.08);
+    --solid:#161A27;
+    --wall-1:#2548B8; --wall-2:#6B33C8; --wall-3:#0E8F80; --wall-opacity:0.55;
+    --scrim:rgba(0,0,0,0.52); --fade:rgba(7,9,15,0.90);
+    --canvas-ring:#F3F5FA; --canvas-shadow:rgba(0,0,0,0.55);
+    --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F3F5FA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  }
+}
+
+/* =====================================================================
+   Landing — liquid glass components
+   ===================================================================== */
+:root{
+  --font-display:-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-body:-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+html, body{ background:var(--bg); color:var(--text); }
+h2{ letter-spacing:-0.02em; }
+body::before{
+  content:''; position:fixed; inset:-10%; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(42% 42% at 16% 20%, var(--wall-1), transparent 70%),
+    radial-gradient(38% 38% at 84% 16%, var(--wall-2), transparent 70%),
+    radial-gradient(46% 46% at 68% 88%, var(--wall-3), transparent 70%);
+  opacity:var(--wall-opacity); filter:blur(28px);
+}
+#top-fade{ background:linear-gradient(to bottom, var(--fade), transparent); }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:999px; }
+
+/* ---- the glass recipe: translucent fill + specular sheen + bright rim + soft float shadow ---- */
+#jc-menu, #search-suggestions, #search-empty-hint, #tooltip, #detail-panel, #chat-panel, .modal, #topbar-inner::before{
+  background-color:var(--glass-fill);
+  background-image:linear-gradient(145deg, var(--sheen) 0%, rgba(255,255,255,0) 42%, rgba(255,255,255,0.05) 100%);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(190%);
+  backdrop-filter:blur(var(--glass-blur)) saturate(190%);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow), var(--glass-hi), 0 0 0 0.5px var(--glass-edge);
+}
+
+/* The top bar paints its glass on a pseudo-element so the dropdown inside it
+   (search suggestions) is not trapped inside a second backdrop-filter. */
+#topbar-inner{ background:none; border:none; box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none;
+  position:relative; isolation:isolate; padding:7px 7px 7px 22px; }
+#topbar-inner::before{ content:''; position:absolute; inset:0; z-index:-1; border-radius:999px; background-color:var(--glass-fill-raised); }
+#wordmark{ opacity:1; font-weight:700; letter-spacing:-0.01em; }
+
+/* ---- search bar: an inset glass pill inside the floating bar ---- */
+#search-wrap{ background:var(--field); border:1px solid var(--glass-border); border-radius:999px; padding:0 14px; gap:10px;
+  box-shadow:inset 0 1px 3px rgba(20,30,60,0.10); transition:background .2s ease, box-shadow .2s ease; }
+#search-wrap:focus-within{ background:var(--field-focus); box-shadow:inset 0 1px 3px rgba(20,30,60,0.10), 0 0 0 3px var(--accent-glow); }
+#search-input{ padding:11px 0; }
+#search-icon{ opacity:0.7; }
+#search-spinner{ border-color:var(--line-strong); border-top-color:var(--accent); }
+#search-clear{ background:var(--hover); color:var(--text-muted); }
+#search-clear:hover{ background:var(--line-strong); color:var(--text); }
+#search-empty-hint{ border-radius:999px; background-color:var(--glass-fill-raised); color:var(--text-muted); padding:7px 14px; }
+
+/* ---- dropdowns ---- */
+#search-suggestions, #jc-menu{ background-color:var(--glass-fill-raised); border-radius:28px; padding:10px; }
+#search-suggestions{ top:calc(100% + 12px); }
+.suggestions-label{ color:var(--text-faint); }
+.chip{ border-radius:999px; padding:10px 14px; }
+.chip:hover{ background:var(--hover); }
+.jc-option{ border-radius:22px; padding:12px 14px; transition:background .15s ease; }
+.jc-option:hover, .jc-option:focus-visible{ background:var(--hover); }
+
+#tooltip{ border-radius:22px; }
+
+/* ---- buttons ---- */
+#theme-btn{ flex:none; width:42px; height:42px; border-radius:50%; border:1px solid var(--glass-border); background:var(--field);
+  color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:var(--glass-hi);
+  transition:transform .15s ease, background .15s ease; }
+#theme-btn:hover{ background:var(--field-focus); }
+#theme-btn:active{ transform:scale(0.94); }
+#join-create-btn, button.primary.full, .detail-actions button.primary, #chat-composer button,
+#chat-identify-form button, #chat-redeem-form button, #status-actions .primary{
+  background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); color:#fff;
+  border:1px solid rgba(255,255,255,0.38); box-shadow:0 8px 22px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.5);
+}
+#join-create-btn:hover, button.primary.full:hover, .detail-actions button.primary:hover, #chat-composer button:hover{ opacity:1; filter:brightness(1.07); }
+button.primary.full{ border-radius:999px; padding:14px; margin-top:18px; }
+#chat-identify-form button, #chat-redeem-form button{ border-radius:999px; }
+.detail-actions button, #status-actions a, #status-actions button{ border-radius:999px; background:var(--field); border:1px solid var(--glass-border);
+  box-shadow:var(--glass-hi); color:var(--text); }
+.detail-actions button:hover{ background:var(--field-focus); }
+.detail-actions button.primary{ background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); color:#fff; }
+.close-btn{ background:var(--field); border:1px solid var(--glass-border); color:var(--text-muted); width:34px; height:34px; box-shadow:var(--glass-hi); }
+.close-btn:hover{ background:var(--field-focus); color:var(--text); }
+.linklike{ color:var(--text-muted); }
+
+/* ---- sheets: floating cards, not edge-to-edge panels ---- */
+#overlay-backdrop{ background:var(--scrim); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+#detail-panel, #chat-panel{
+  top:14px; right:14px; bottom:14px; height:auto; width:min(440px, calc(100vw - 28px)); border-radius:34px;
+  transform:translateX(calc(100% + 24px)); padding:30px 26px calc(26px + env(safe-area-inset-bottom));
+}
+#detail-panel.open, #chat-panel.open{ transform:translateX(0); }
+@media (max-width:640px){
+  #detail-panel, #chat-panel{ top:auto; left:10px; right:10px; bottom:10px; width:auto; max-height:88vh; border-radius:32px;
+    transform:translateY(calc(100% + 24px)); padding-bottom:calc(26px + env(safe-area-inset-bottom)); }
+  #detail-panel.open, #chat-panel.open{ transform:translateY(0); }
+}
+.modal{ border-radius:34px; padding:30px; }
+#detail-visual{ border-radius:24px; }
+.detail-badge{ color:var(--text) !important; background:var(--field); }
+.stats-row{ border-color:var(--line); }
+
+/* ---- fields: pills ---- */
+#modal-join input, #modal-join textarea, #modal-create input, #modal-create textarea, #modal-create select,
+#modal-status input, #modal-checkout input, #modal-checkout select,
+#chat-input, #chat-identify-form input, #chat-redeem-form input{
+  background-color:var(--field); border:1px solid var(--glass-border); border-radius:999px; color:var(--text);
+  padding:12px 16px; box-shadow:inset 0 1px 3px rgba(20,30,60,0.08); transition:background .2s ease, box-shadow .2s ease;
+}
+#modal-join textarea, #modal-create textarea{ border-radius:22px; }
+#modal-join input:focus, #modal-join textarea:focus, #modal-create input:focus, #modal-create textarea:focus, #modal-create select:focus,
+#modal-status input:focus, #modal-checkout input:focus, #modal-checkout select:focus, #chat-input:focus,
+#chat-identify-form input:focus, #chat-redeem-form input:focus{
+  outline:none; background-color:var(--field-focus); box-shadow:inset 0 1px 3px rgba(20,30,60,0.08), 0 0 0 3px var(--accent-glow);
+}
+#modal-create select, #modal-checkout select{
+  -webkit-appearance:none; appearance:none; background-image:var(--chevron); background-repeat:no-repeat;
+  background-position:right 16px center; padding-right:40px;
+}
+#chat-identify-row button, #chat-redeem-toggle{ border-radius:999px; background:var(--field); border:1px dashed var(--line-strong); }
+
+/* ---- chat ---- */
+.chat-bubble{ border-radius:22px; padding:11px 15px; }
+.chat-bubble.mine{ background:linear-gradient(180deg, var(--accent-top), var(--accent-fill)); color:#fff; border:none; border-bottom-right-radius:8px;
+  box-shadow:0 6px 18px var(--accent-glow); }
+.chat-bubble.theirs{ background:var(--field); border:1px solid var(--glass-border); border-bottom-left-radius:8px; box-shadow:var(--glass-hi); }
+.bubble-who{ color:var(--text-muted); }
+.chat-pill.ai{ background:rgba(139,111,232,0.16); color:var(--ink-ai); }
+.chat-pill.waiting{ background:rgba(214,178,76,0.22); color:var(--ink-wait); }
+.chat-pill.staff{ background:rgba(79,157,92,0.18); color:var(--ink-good); }
+.ai-chip{ background:rgba(139,111,232,0.18); color:var(--ink-ai); }
+.ai-disclosure-banner{ color:var(--ink-ai); background:rgba(139,111,232,0.12); border-radius:14px; }
+#chat-redeem-hint.redeem-ok{ color:var(--ink-good); }
+#chat-redeem-hint.redeem-error{ color:var(--ink-bad); }
+.field-error, .form-error{ color:var(--ink-bad); }
+.detail-price{ letter-spacing:-0.02em; }
+
+/* ---- fallbacks ---- */
+@media (prefers-reduced-transparency: reduce){
+  #jc-menu, #search-suggestions, #search-empty-hint, #tooltip, #detail-panel, #chat-panel, .modal, #topbar-inner::before{
+    background-image:none; background-color:var(--solid); -webkit-backdrop-filter:none; backdrop-filter:none; }
+  #overlay-backdrop{ -webkit-backdrop-filter:none; backdrop-filter:none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  #jc-menu, #search-suggestions, #search-empty-hint, #tooltip, #detail-panel, #chat-panel, .modal, #topbar-inner::before{
+    background-image:none; background-color:var(--solid); }
+}
+@media (prefers-contrast: more){
+  :root{ --glass-border:var(--line-strong); --text-muted:var(--text); --text-faint:var(--text-muted); }
+}
+</style>
+<script>
+/* Light / dark switch. Follows the device until the person chooses; the
+   choice is remembered. Dispatches "ebos-theme" so canvas code can re-read colours. */
+(function(){
+  var KEY = 'ebos-theme', root = document.documentElement;
+  function systemDark(){ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+  function current(){ return root.getAttribute('data-theme') || (systemDark() ? 'dark' : 'light'); }
+  function paintMeta(t){
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', t === 'dark' ? '#07090F' : '#E8EDF7');
+  }
+  function apply(t, remember){
+    root.setAttribute('data-theme', t);
+    if (remember){ try { localStorage.setItem(KEY, t); } catch (e){} }
+    paintMeta(t);
+    try { window.dispatchEvent(new Event('ebos-theme')); } catch (e){}
+  }
+  window.EbosTheme = { current: current, toggle: function(){ apply(current() === 'dark' ? 'light' : 'dark', true); } };
+  paintMeta(current());
+  if (window.matchMedia){
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function(){ paintMeta(current()); try { window.dispatchEvent(new Event('ebos-theme')); } catch (e){} };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('#theme-btn, .theme-toggle') : null;
+    if (b) window.EbosTheme.toggle();
+  });
+})();
+</script>
 </head>
 <body>
 <div id="app">
@@ -229,6 +501,7 @@
           </div>
         </div>
       </div>
+      <button id="theme-btn" type="button" aria-label="Switch between light and dark appearance" title="Light / dark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
       <button id="join-create-btn" type="button">
         <span class="full-label">Join or Create Business</span>
         <span class="short-label" aria-hidden="true">+</span>
@@ -247,7 +520,7 @@
     </button>
     <button class="jc-option" id="jc-upload" role="menuitem" type="button">
       <span class="jc-title">Upload Guide</span>
-      <span class="jc-sub">Let AI sketch a starting structure from a PDF, Word doc, or Markdown file.</span>
+      <span class="jc-sub">Let AI sketch a starting structure from a Markdown or text file.</span>
     </button>
     <button class="jc-option" id="jc-backoffice" role="menuitem" type="button">
       <span class="jc-title">Sign In to Back Office</span>
@@ -270,6 +543,7 @@
     <div class="detail-badge" id="detail-category"></div>
     <h2 id="detail-name"></h2>
     <div id="detail-business"></div>
+    <div id="detail-price" class="detail-price hidden"></div>
     <div class="stats-row">
       <div class="stat"><span class="stat-value" id="detail-sales"></span><span class="stat-label">Sales</span></div>
       <div class="stat"><span class="stat-value" id="detail-repeat"></span><span class="stat-label">Repeat customers</span></div>
@@ -307,7 +581,7 @@
       <div id="chat-redeem-form" class="hidden">
         <input id="chat-redeem-input" placeholder="Paste your code" autocomplete="off" />
         <button id="chat-redeem-submit" type="button">Submit</button>
-        <div id="chat-redeem-hint" class="demo-hint">Demo code: DEMO-1234 (works once)</div>
+        <div id="chat-redeem-hint" class="demo-hint">Paid for an order? Paste your order code to reach a team member.</div>
       </div>
     </div>
     <form id="chat-composer">
@@ -331,19 +605,35 @@
     </form>
     <div id="join-success" class="hidden success-state">
       <div class="success-icon">✓</div>
-      <p>Request sent. The owner will follow up by email.</p>
+      <p id="join-success-text">Request sent. The business sees it in their chat inbox and replies there.</p>
+      <button type="button" class="linklike" id="join-open-chat">Open the chat</button>
     </div>
-    <p class="modal-note">This captures an inquiry for manual follow-up — the backend doesn't expose a public self-serve join flow yet.</p>
+    <div id="join-error" class="form-error" role="alert"></div>
+    <p class="modal-note">Your request is sent to the business as a chat message — the owner or team replies in that chat. Nothing here adds you to the business automatically; the owner decides.</p>
   </div>
 
   <div id="modal-create" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="create-title">
     <button class="close-btn" data-close type="button" aria-label="Close">×</button>
     <div class="eyebrow">Start something new</div>
-    <h2 id="create-title">Create a business</h2>
-    <p class="modal-sub">Give it a name and a category — you can flesh out the rest once it's live.</p>
-    <form id="create-form">
+    <h2 id="create-title">Register your business</h2>
+    <p class="modal-sub">Create your owner account and your first business. We'll email you a link to confirm your address before you can sign in.</p>
+    <form id="create-form" novalidate>
+      <label class="field-label" for="create-fullname">Your full name</label>
+      <input id="create-fullname" autocomplete="name" maxlength="100" required />
+      <div class="field-error" id="err-fullName" role="alert"></div>
+      <label class="field-label" for="create-email">Email address</label>
+      <input id="create-email" type="email" autocomplete="email" inputmode="email" maxlength="254" required />
+      <div class="field-error" id="err-email" role="alert"></div>
+      <label class="field-label" for="create-phone">Phone number</label>
+      <input id="create-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="024 123 4567 or +44 7911 123456" required />
+      <div class="field-error" id="err-phone" role="alert"></div>
+      <label class="field-label" for="create-password">Password</label>
+      <input id="create-password" type="password" autocomplete="new-password" minlength="10" required />
+      <div class="field-hint">At least 10 characters. Mix upper/lower case, numbers and symbols — or use a longer passphrase of 14+ characters.</div>
+      <div class="field-error" id="err-password" role="alert"></div>
       <label class="field-label" for="create-name">Business name</label>
-      <input id="create-name" required placeholder="e.g. Foundry Learning" autocomplete="off" />
+      <input id="create-name" autocomplete="organization" maxlength="120" required placeholder="e.g. Foundry Learning" />
+      <div class="field-error" id="err-businessName" role="alert"></div>
       <label class="field-label" for="create-category">Category</label>
       <select id="create-category" required>
         <option value="food">Food</option>
@@ -351,23 +641,76 @@
         <option value="energy">Energy</option>
         <option value="manufacturing">Manufacturing</option>
         <option value="education">Education</option>
+        <option value="retail">Retail</option>
+        <option value="services">Services</option>
+        <option value="technology">Technology</option>
+        <option value="health">Health</option>
+        <option value="other">Other</option>
       </select>
+      <div class="field-error" id="err-category" role="alert"></div>
+      <label class="field-label" for="create-country">Country</label>
+      <input id="create-country" autocomplete="country-name" value="Ghana" maxlength="60" required />
+      <div class="field-error" id="err-country" role="alert"></div>
+      <label class="field-label" for="create-city">City or town</label>
+      <input id="create-city" autocomplete="address-level2" maxlength="80" required />
+      <div class="field-error" id="err-city" role="alert"></div>
+      <label class="field-label" for="create-address">Business address</label>
+      <input id="create-address" autocomplete="street-address" maxlength="200" required />
+      <div class="field-error" id="err-address" role="alert"></div>
       <label class="field-label" for="create-desc">What does it make or do?</label>
-      <textarea id="create-desc" rows="3" required placeholder="One or two sentences is plenty for now"></textarea>
-      <button type="submit" class="primary full">Create business</button>
+      <textarea id="create-desc" rows="3" maxlength="1000" required placeholder="One or two sentences is plenty for now"></textarea>
+      <div class="field-error" id="err-description" role="alert"></div>
+      <div id="create-error" class="form-error" role="alert"></div>
+      <button type="submit" class="primary full" id="create-submit">Create my account</button>
     </form>
     <div id="create-success" class="hidden success-state">
       <div class="success-icon">✓</div>
       <p id="create-success-text"></p>
+      <button type="button" class="linklike" id="create-resend">Send the email again</button>
+      <div id="create-resend-status" class="field-hint" role="status"></div>
     </div>
-    <p class="modal-note">Creating a business is an authenticated, back-office action on the real API (<code>POST /businesses</code>) — this form is a lead-capture placeholder until that login flow is built here.</p>
+    <p class="modal-note">Your details are used to set up your account and are not shown on the public storefront. Passwords are stored hashed, never in plain text.</p>
+  </div>
+
+  <div id="modal-status" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="status-title">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div class="eyebrow" id="status-eyebrow"></div>
+    <h2 id="status-title"></h2>
+    <p class="modal-sub" id="status-text"></p>
+    <form id="reset-form" class="hidden" novalidate>
+      <label class="field-label" for="reset-password">New password</label>
+      <input id="reset-password" type="password" autocomplete="new-password" minlength="10" required />
+      <div class="field-hint">At least 10 characters, or a passphrase of 14+.</div>
+      <div id="reset-error" class="form-error" role="alert"></div>
+      <button type="submit" class="primary full" id="reset-submit">Set new password</button>
+    </form>
+    <div id="status-actions"></div>
+  </div>
+
+  <div id="modal-checkout" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+    <button class="close-btn" data-close type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Checkout</div>
+    <h2 id="checkout-title"></h2>
+    <p class="modal-sub" id="checkout-summary"></p>
+    <form id="checkout-form" novalidate>
+      <label class="field-label" for="checkout-name">Your name</label>
+      <input id="checkout-name" autocomplete="name" maxlength="100" required />
+      <label class="field-label" for="checkout-email">Email (for your receipt)</label>
+      <input id="checkout-email" type="email" autocomplete="email" inputmode="email" maxlength="254" required />
+      <label class="field-label" for="checkout-qty">Quantity</label>
+      <input id="checkout-qty" type="number" min="1" max="99" step="1" value="1" inputmode="numeric" required />
+      <div id="checkout-total" aria-live="polite"></div>
+      <div id="checkout-error" class="form-error" role="alert"></div>
+      <button type="submit" class="primary full" id="checkout-submit">Pay securely with Paystack</button>
+    </form>
+    <p class="modal-note">You'll be taken to Paystack to pay (card or mobile money, depending on what's available). We never see your card details. Your order is only confirmed once Paystack confirms the payment to our server — not when you come back to this page.</p>
   </div>
 
   <div id="modal-upload" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="upload-title">
     <button class="close-btn" data-close type="button" aria-label="Close">×</button>
     <div class="eyebrow">Upload an operating guide</div>
     <h2 id="upload-title">We'll sketch a structure</h2>
-    <p class="modal-sub">A PDF, Word doc, or Markdown file works. This previews what a starting structure could look like.</p>
+    <p class="modal-sub">A Markdown (.md) or text (.txt) file works. This previews what a starting structure could look like.</p>
     <label id="drop-zone" for="upload-file">
       <div id="drop-zone-text">Drop your guide here, or choose a file</div>
       <div id="drop-zone-sub">.md and .txt get a live AI preview below · other formats show this placeholder note</div>
@@ -450,17 +793,30 @@
      Claude's UI) — every operation is try/caught per that API's own
      guidance, since a missing key throws rather than returning null. */
   var TokenStore = (function(){
+    // Visitor tokens must survive a full page navigation (checkout sends the
+    // visitor to Paystack and back), so a real browser gets localStorage.
+    // window.storage is the sandbox-only API some preview environments
+    // provide instead; plain memory is the last resort.
     var memory = {};
+    var PREFIX = 'ebos:';
+    function ls(){ try { return window.localStorage || null; } catch (e){ return null; } }
     async function get(key){
       if (memory.hasOwnProperty(key)) return memory[key];
+      var store = ls();
+      if (store){
+        try { var raw = store.getItem(PREFIX + key); var v = raw ? JSON.parse(raw) : null; memory[key] = v; return v; }
+        catch (e){ return null; }
+      }
       if (window.storage){
-        try { var r = await window.storage.get(key); var v = r ? JSON.parse(r.value) : null; memory[key] = v; return v; }
+        try { var r = await window.storage.get(key); var v2 = r ? JSON.parse(r.value) : null; memory[key] = v2; return v2; }
         catch (e){ return null; }
       }
       return null;
     }
     async function set(key, value){
       memory[key] = value;
+      var store = ls();
+      if (store){ try { store.setItem(PREFIX + key, JSON.stringify(value)); return; } catch (e){} }
       if (window.storage){ try { await window.storage.set(key, JSON.stringify(value)); } catch (e){} }
     }
     return { get: get, set: set };
@@ -534,6 +890,8 @@
         err.status = res.status;
         err.reason = body && body.reason;
         err.code = body && body.error;
+        err.fields = body && body.fields;      // per-field messages from POST /auth/signup
+        err.problems = body && body.problems;  // password-policy problems
         throw err;
       }
       if (res.status === 204) return null;
@@ -609,25 +967,48 @@
     }
 
     async function uploadGuidePreview(file){
-      // HONEST GAP, not a bug: POST /guides/analyze requires a real JWT
-      // (it's an owner action — analyzing a guide is part of creating a
-      // business, see the backend's own routes/ai.ts comment on this).
-      // This landing page has no login/signup screen, so there is no
-      // token available here to send. Rather than fake auth or silently
-      // drop the feature, this tells the visitor plainly what's true:
-      // guide analysis needs an account, which isn't part of this public
-      // page. If a real signup/login flow gets added to this frontend
-      // later, wire this the same way as every method above (fetch with
-      // an Authorization: Bearer header instead of X-Visitor-Token) — see
-      // SETUP.md's "Adding the remaining values" section.
-      return { preview: null, requiresAccount: true };
+      // Guide analysis is an owner action (needs a signed-in session). If
+      // the owner signed in to the back office in this same browser, the
+      // HttpOnly session cookie is sent automatically; the X-Ebos-Client
+      // header is the CSRF guard the server requires for cookie requests.
+      var isText = /\.(md|txt)$/i.test(file.name) || (file.type && file.type.indexOf('text/') === 0);
+      if (!isText) return { preview: null, requiresAccount: false, unsupported: true };
+      if (file.size > 200000) return { preview: null, requiresAccount: false, tooLarge: true };
+      var text = await file.text();
+      try {
+        var res = await apiFetch('/guides/analyze', {
+          method: 'POST',
+          headers: { 'X-Ebos-Client': 'web' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ text: text })
+        });
+        return { preview: res.structure, requiresAccount: false };
+      } catch (err){
+        if (err.status === 401) return { preview: null, requiresAccount: true };
+        throw err;
+      }
+    }
+
+    function signup(fields){ return apiFetch('/auth/signup', { method: 'POST', body: JSON.stringify(fields) }); }
+    function resendVerification(email){ return apiFetch('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email: email }) }); }
+    function verifyEmail(token){ return apiFetch('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token: token }) }); }
+    function resetPassword(token, password){ return apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token: token, password: password }) }); }
+
+    function checkoutConfig(){ return apiFetch('/checkout/config'); }
+    function startCheckout(conversationId, token, items){
+      return apiFetch('/checkout', { method: 'POST', headers: visitorHeaders(token), body: JSON.stringify({ conversationId: conversationId, items: items }) });
+    }
+    function verifyPayment(reference, token){
+      return apiFetch('/checkout/' + encodeURIComponent(reference) + '/verify', { method: 'POST', headers: visitorHeaders(token) });
     }
 
     return {
       fetchSnapshot: fetchSnapshot, searchProductStream: searchProductStream, getProductOverview: getProductOverview,
       startConversation: startConversation, getConversation: getConversation, postVisitorMessage: postVisitorMessage,
       requestAIReply: requestAIReply, identifyVisitor: identifyVisitor, redeemToken: redeemToken,
-      uploadGuidePreview: uploadGuidePreview
+      uploadGuidePreview: uploadGuidePreview,
+      signup: signup, resendVerification: resendVerification, verifyEmail: verifyEmail, resetPassword: resetPassword,
+      checkoutConfig: checkoutConfig, startCheckout: startCheckout, verifyPayment: verifyPayment
     };
   })();
 
@@ -645,6 +1026,16 @@
   var canvasWidth = 0, canvasHeight = 0, maxRadius = 200, bucketWidth = 10;
   var scrollY = 0, velocity = 1, targetVelocity = 1, lastInputTime = 0;
   var activeCircles = [], frontier = [], activeSearchIds = null;
+  // Canvas colours come from the CSS theme tokens so bubbles look right in light and dark.
+  var CANVAS_THEME = { ring: '#0E1320', shadow: 'rgba(32,44,90,0.30)' };
+  function readCanvasTheme(){
+    if (typeof getComputedStyle !== 'function') return;
+    var cs = getComputedStyle(document.documentElement);
+    CANVAS_THEME.ring = cs.getPropertyValue('--canvas-ring').trim() || CANVAS_THEME.ring;
+    CANVAS_THEME.shadow = cs.getPropertyValue('--canvas-shadow').trim() || CANVAS_THEME.shadow;
+  }
+  readCanvasTheme();
+  window.addEventListener('ebos-theme', readCanvasTheme);
   var catalogById = {}, catalogList = [];
 
   function computeRadiusFromSize(size){
@@ -823,10 +1214,10 @@
     if (pulseAmt > 0.02){
       ctx.save(); ctx.globalAlpha = c.alpha * pulseAmt * 0.45;
       try { ctx.filter = 'blur(' + (r * 0.18) + 'px)'; } catch(e){}
-      ctx.beginPath(); ctx.arc(c.x, renderY, r * (1.08 + pulseAmt * 0.14), 0, Math.PI * 2); ctx.fillStyle = '#EDEFF3'; ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.arc(c.x, renderY, r * (1.08 + pulseAmt * 0.14), 0, Math.PI * 2); ctx.fillStyle = CANVAS_THEME.ring; ctx.fill(); ctx.restore();
     }
 
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = r * 0.3; ctx.shadowOffsetY = r * 0.1;
+    ctx.shadowColor = CANVAS_THEME.shadow; ctx.shadowBlur = r * 0.3; ctx.shadowOffsetY = r * 0.1;
     var grad = ctx.createRadialGradient(c.x - r*0.35, renderY - r*0.4, r*0.1, c.x, renderY, r*1.05);
     grad.addColorStop(0, lighten(cat.color, 0.32)); grad.addColorStop(0.55, cat.color); grad.addColorStop(1, darken(cat.color, 0.35));
     ctx.beginPath(); ctx.arc(c.x, renderY, r, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
@@ -1052,18 +1443,234 @@
     // missing polish pass.
     window.location.href = 'e-bos-backoffice.html';
   });
-  document.getElementById('join-form').addEventListener('submit', function(e){
+  /* ---------- Join: a real chat message to the business ---------- */
+  var joinChatItem = null;
+  document.getElementById('join-form').addEventListener('submit', async function(e){
     e.preventDefault();
-    document.getElementById('join-form').classList.add('hidden');
-    document.getElementById('join-success').classList.remove('hidden');
+    var errEl = document.getElementById('join-error');
+    errEl.textContent = '';
+    var name = document.getElementById('join-business').value.trim().toLowerCase();
+    var note = document.getElementById('join-message').value.trim();
+    var match = null;
+    for (var i = 0; i < catalogList.length; i++){ if (String(catalogList[i].businessName).toLowerCase() === name){ match = catalogList[i]; break; } }
+    if (!match){ errEl.textContent = 'Choose a business from the suggestions — only businesses with published listings can be reached from here.'; return; }
+    var btn = this.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      var existing = await TokenStore.get('conv:' + match.businessId);
+      var text = 'I would like to join your business on AI·BOS.' + (note ? ' ' + note : '');
+      if (existing){
+        await Backend.postVisitorMessage(existing.conversationId, existing.visitorToken, text);
+      } else {
+        var started = await Backend.startConversation({ businessId: match.businessId, message: text, subject: 'Request to join' });
+        await TokenStore.set('conv:' + match.businessId, { conversationId: started.conversation.id, visitorToken: started.visitorToken });
+      }
+      joinChatItem = match;
+      document.getElementById('join-success-text').textContent = 'Request sent to ' + match.businessName + '. They will see it in their chat inbox and reply there.';
+      document.getElementById('join-form').classList.add('hidden');
+      document.getElementById('join-success').classList.remove('hidden');
+    } catch (err){
+      errEl.textContent = (err && err.status === 429) ? 'Too many requests just now — please wait a little and try again.' : "We couldn't send that just now. Please try again.";
+    } finally { btn.disabled = false; }
   });
-  document.getElementById('create-form').addEventListener('submit', function(e){
+  document.getElementById('join-open-chat').addEventListener('click', function(){ if (joinChatItem) openChatFor(joinChatItem); });
+
+  /* ---------- Create: real registration (POST /auth/signup) ---------- */
+  var SIGNUP_FIELDS = { fullName: 'create-fullname', email: 'create-email', phone: 'create-phone', password: 'create-password',
+    businessName: 'create-name', category: 'create-category', country: 'create-country', city: 'create-city',
+    address: 'create-address', description: 'create-desc' };
+  var lastSignupEmail = '';
+  function clearSignupErrors(){
+    Object.keys(SIGNUP_FIELDS).forEach(function(k){ var el = document.getElementById('err-' + k); if (el) el.textContent = ''; });
+    document.getElementById('create-error').textContent = '';
+  }
+  document.getElementById('create-form').addEventListener('submit', async function(e){
     e.preventDefault();
-    var name = document.getElementById('create-name').value.trim();
-    document.getElementById('create-form').classList.add('hidden');
-    document.getElementById('create-success-text').textContent = name + " noted. We've queued it for setup — add your first item once it's live.";
-    document.getElementById('create-success').classList.remove('hidden');
+    clearSignupErrors();
+    var body = {};
+    Object.keys(SIGNUP_FIELDS).forEach(function(k){ body[k] = document.getElementById(SIGNUP_FIELDS[k]).value; });
+    var btn = document.getElementById('create-submit');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      var res = await Backend.signup(body);
+      lastSignupEmail = body.email.trim();
+      document.getElementById('create-form').classList.add('hidden');
+      document.getElementById('create-success-text').textContent = res.message || ('Check ' + lastSignupEmail + ' for a confirmation link.');
+      document.getElementById('create-resend-status').textContent = '';
+      document.getElementById('create-success').classList.remove('hidden');
+    } catch (err){
+      var fields = err && err.fields;
+      if (fields){
+        var first = null;
+        Object.keys(fields).forEach(function(k){
+          var el = document.getElementById('err-' + k);
+          if (el){ el.textContent = fields[k]; if (!first) first = document.getElementById(SIGNUP_FIELDS[k]); }
+        });
+        if (first) first.focus();
+      }
+      document.getElementById('create-error').textContent =
+        err.status === 429 ? 'Too many attempts — please wait a while and try again.' :
+        err.status === 503 ? err.message :
+        fields ? 'Please correct the highlighted fields.' :
+        "We couldn't create the account just now. Please try again.";
+    } finally { btn.disabled = false; btn.textContent = 'Create my account'; }
   });
+  document.getElementById('create-resend').addEventListener('click', async function(){
+    var st = document.getElementById('create-resend-status');
+    if (!lastSignupEmail) return;
+    this.disabled = true;
+    try { await Backend.resendVerification(lastSignupEmail); st.textContent = 'If that address is waiting for confirmation, a new link is on its way.'; }
+    catch (err){ st.textContent = err.status === 429 ? 'Please wait a bit before asking again.' : "Couldn't send that just now."; }
+    var btnEl = this; setTimeout(function(){ btnEl.disabled = false; }, 15000);
+  });
+
+  /* ---------- Status dialog + links from emails (#verify=, #reset=) and from Paystack (#paid=) ---------- */
+  function showStatus(opts){
+    document.getElementById('status-eyebrow').textContent = opts.eyebrow || '';
+    document.getElementById('status-title').textContent = opts.title || '';
+    document.getElementById('status-text').textContent = opts.text || '';
+    document.getElementById('reset-form').classList.toggle('hidden', !opts.resetForm);
+    var actions = document.getElementById('status-actions');
+    actions.innerHTML = '';
+    (opts.actions || []).forEach(function(a){
+      var el = document.createElement(a.href ? 'a' : 'button');
+      if (a.href) el.href = a.href; else el.type = 'button';
+      el.textContent = a.label; if (a.primary) el.className = 'primary';
+      if (a.onClick) el.addEventListener('click', a.onClick);
+      actions.appendChild(el);
+    });
+    openOverlayEl(document.getElementById('modal-status'));
+  }
+  function clearHash(){ try { history.replaceState(null, '', location.pathname + location.search); } catch (e){} }
+
+  async function handleVerifyLink(token){
+    showStatus({ eyebrow: 'Email confirmation', title: 'Confirming…', text: 'One moment.' });
+    try {
+      await Backend.verifyEmail(token);
+      showStatus({ eyebrow: 'Email confirmation', title: 'Email confirmed', text: 'Your account is active. You can sign in now.',
+        actions: [{ label: 'Sign in', href: 'e-bos-backoffice.html', primary: true }] });
+    } catch (err){
+      showStatus({ eyebrow: 'Email confirmation', title: 'That link didn\u2019t work',
+        text: 'It may have expired or already been used. Sign in to request a new confirmation link.',
+        actions: [{ label: 'Go to sign in', href: 'e-bos-backoffice.html', primary: true }] });
+    }
+  }
+
+  var pendingResetToken = null;
+  function handleResetLink(token){
+    pendingResetToken = token;
+    document.getElementById('reset-password').value = '';
+    document.getElementById('reset-error').textContent = '';
+    showStatus({ eyebrow: 'Account recovery', title: 'Choose a new password', text: 'This also confirms your email address. Everywhere you were signed in will be signed out.', resetForm: true });
+  }
+  document.getElementById('reset-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var errEl = document.getElementById('reset-error'); errEl.textContent = '';
+    var btn = document.getElementById('reset-submit'); btn.disabled = true;
+    try {
+      await Backend.resetPassword(pendingResetToken, document.getElementById('reset-password').value);
+      pendingResetToken = null;
+      showStatus({ eyebrow: 'Account recovery', title: 'Password changed', text: 'You can sign in with your new password now.',
+        actions: [{ label: 'Sign in', href: 'e-bos-backoffice.html', primary: true }] });
+    } catch (err){
+      errEl.textContent = err.code === 'invalid_token' ? 'This link has expired or was already used. Request a new one from the sign-in page.' : (err.message || 'Could not change the password.');
+    } finally { btn.disabled = false; }
+  });
+
+  function formatMoney(minor, currency){
+    return (currency || 'GHS') + ' ' + (minor / 100).toFixed(2);
+  }
+
+  async function handlePaidReturn(reference){
+    var saved = await TokenStore.get('pay:' + reference);
+    if (!saved){
+      showStatus({ eyebrow: 'Payment', title: 'We couldn\u2019t find this payment on this device',
+        text: 'Open the page in the same browser you started the payment from, or message the business with your payment reference: ' + reference });
+      return;
+    }
+    showStatus({ eyebrow: 'Payment', title: 'Checking your payment…', text: 'Asking the payment provider for the result.' });
+    try {
+      var res = await Backend.verifyPayment(reference, saved.visitorToken);
+      if (res.status === 'paid'){
+        var told = false;
+        if (res.transactionToken){
+          try { await Backend.redeemToken(saved.conversationId, saved.visitorToken, res.transactionToken); told = true; } catch (e2){ /* the order is paid regardless */ }
+        }
+        var item = { businessId: saved.businessId, businessName: saved.businessName };
+        showStatus({ eyebrow: 'Payment', title: 'Payment confirmed',
+          text: formatMoney(res.amountMinor, res.currency) + ' paid to ' + saved.businessName + '.' + (told ? ' A team member has been notified and will join the chat.' : ' Open the chat to follow up with the team.'),
+          actions: [{ label: 'Open the chat', primary: true, onClick: function(){ openChatFor(item); } }] });
+      } else if (res.status === 'failed' || res.status === 'abandoned'){
+        showStatus({ eyebrow: 'Payment', title: 'The payment didn\u2019t go through', text: 'You have not been charged for this order. You can try again from the product page.' });
+      } else {
+        showStatus({ eyebrow: 'Payment', title: 'Waiting for confirmation',
+          text: 'The payment provider hasn\u2019t confirmed this payment yet. If you were charged it should show up shortly.',
+          actions: [{ label: 'Check again', primary: true, onClick: function(){ handlePaidReturn(reference); } }] });
+      }
+    } catch (err){
+      showStatus({ eyebrow: 'Payment', title: 'Couldn\u2019t confirm yet', text: 'We couldn\u2019t reach the payment provider just now. Nothing is lost — try again in a moment.',
+        actions: [{ label: 'Try again', primary: true, onClick: function(){ handlePaidReturn(reference); } }] });
+    }
+  }
+
+  function handleHash(){
+    var m = /^#(verify|reset|paid)=([A-Za-z0-9_-]{10,128})$/.exec(location.hash || '');
+    if (!m) return;
+    clearHash(); // the token should not stay in the address bar or history
+    if (m[1] === 'verify') handleVerifyLink(m[2]);
+    else if (m[1] === 'reset') handleResetLink(m[2]);
+    else handlePaidReturn(m[2]);
+  }
+
+  /* ---------- Checkout ---------- */
+  var paymentsEnabled = false;
+  var checkoutItem = null;
+  function updateCheckoutTotal(){
+    var qty = parseInt(document.getElementById('checkout-qty').value, 10);
+    var el = document.getElementById('checkout-total');
+    if (!checkoutItem || !(qty >= 1 && qty <= 99)){ el.textContent = ''; return; }
+    el.textContent = 'Total: ' + formatMoney(Math.round(checkoutItem.price * 100) * qty, checkoutItem.currency);
+  }
+  document.getElementById('checkout-qty').addEventListener('input', updateCheckoutTotal);
+  function openCheckout(item){
+    checkoutItem = item;
+    document.getElementById('checkout-title').textContent = item.name;
+    document.getElementById('checkout-summary').textContent = item.businessName + ' · ' + formatMoney(Math.round(item.price * 100), item.currency) + ' each';
+    document.getElementById('checkout-qty').value = '1';
+    document.getElementById('checkout-error').textContent = '';
+    updateCheckoutTotal();
+    TokenStore.get('visitor-identity').then(function(id){
+      if (id){ document.getElementById('checkout-name').value = id.name || ''; document.getElementById('checkout-email').value = id.email || ''; }
+    });
+    openOverlayEl(document.getElementById('modal-checkout'));
+  }
+  document.getElementById('checkout-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var errEl = document.getElementById('checkout-error'); errEl.textContent = '';
+    var btn = document.getElementById('checkout-submit');
+    var name = document.getElementById('checkout-name').value.trim();
+    var email = document.getElementById('checkout-email').value.trim();
+    var qty = parseInt(document.getElementById('checkout-qty').value, 10);
+    if (!name || !email || !(qty >= 1 && qty <= 99)){ errEl.textContent = 'Please enter your name, a valid email and a quantity from 1 to 99.'; return; }
+    var item = checkoutItem; if (!item) return;
+    btn.disabled = true; btn.textContent = 'Preparing payment…';
+    try {
+      var saved = await TokenStore.get('conv:' + item.businessId);
+      if (!saved){
+        var started = await Backend.startConversation({ businessId: item.businessId, message: 'I would like to buy "' + item.name + '".', subject: 'Purchase: ' + item.name, visitorDisplayName: name });
+        saved = { conversationId: started.conversation.id, visitorToken: started.visitorToken };
+        await TokenStore.set('conv:' + item.businessId, saved);
+      }
+      await Backend.identifyVisitor(saved.conversationId, saved.visitorToken, { name: name, email: email });
+      await TokenStore.set('visitor-identity', { name: name, email: email });
+      var co = await Backend.startCheckout(saved.conversationId, saved.visitorToken, [{ materialId: item.id, quantity: qty }]);
+      await TokenStore.set('pay:' + co.reference, { businessId: item.businessId, businessName: item.businessName, conversationId: saved.conversationId, visitorToken: saved.visitorToken });
+      window.location.href = co.authorizationUrl; // hosted payment page
+    } catch (err){
+      errEl.textContent = err.status === 429 ? 'Too many attempts — please wait a little and try again.' : (err.message || "We couldn't start the payment. Nothing was charged.");
+      btn.disabled = false; btn.textContent = 'Pay securely with Paystack';
+    }
+  });
+  Backend.checkoutConfig().then(function(c){ paymentsEnabled = !!(c && c.enabled); }).catch(function(){ paymentsEnabled = false; });
 
   /* ================= Upload guide (client-side preview only) ================= */
   var dropZone = document.getElementById('drop-zone'), fileInput = document.getElementById('upload-file');
@@ -1082,8 +1689,14 @@
       var res = await Backend.uploadGuidePreview(file);
       uploadStatus.classList.add('hidden');
       if (res.preview){ uploadResultText.textContent = res.preview; uploadResult.classList.remove('hidden'); }
-      else { uploadStatus.classList.remove('hidden'); uploadStatus.textContent = file.name + ' — try a .md or .txt file for a live preview here; other formats aren\u2019t parsed client-side.'; }
-    } catch (err){ uploadStatus.textContent = 'Preview unavailable right now.'; }
+      else {
+        uploadStatus.classList.remove('hidden');
+        uploadStatus.textContent = res.requiresAccount
+          ? 'Sign in to the back office first (in this same browser), then upload again — guide analysis is an owner action.'
+          : res.tooLarge ? file.name + ' is over 200 KB — use a shorter excerpt for the preview.'
+          : file.name + ' — only .md and .txt files can be previewed here; other formats aren\u2019t read.';
+      }
+    } catch (err){ uploadStatus.classList.remove('hidden'); uploadStatus.textContent = err.status === 429 ? 'Too many requests — try again in a minute.' : 'Preview unavailable right now.'; }
   }
 
   /* ================= Detail panel ================= */
@@ -1122,7 +1735,15 @@
     var overviewEl = document.getElementById('detail-overview');
     overviewEl.textContent = 'Reading the details…'; overviewEl.classList.add('shimmer');
     var contactBtn = document.getElementById('detail-contact'), purchaseBtn = document.getElementById('detail-purchase');
-    contactBtn.disabled = false; purchaseBtn.textContent = 'Get this'; purchaseBtn.disabled = false;
+    contactBtn.disabled = false; purchaseBtn.disabled = false;
+    var priceEl = document.getElementById('detail-price');
+    var priced = typeof item.price === 'number' && item.price > 0;
+    if (priced){
+      priceEl.textContent = formatMoney(Math.round(item.price * 100), item.currency);
+      priceEl.classList.remove('hidden');
+    } else { priceEl.classList.add('hidden'); }
+    if (priced && paymentsEnabled){ purchaseBtn.textContent = 'Buy now'; purchaseBtn.dataset.mode = 'buy'; }
+    else { purchaseBtn.textContent = priced ? 'Ask to buy' : 'Enquire'; purchaseBtn.dataset.mode = 'chat'; }
 
     openOverlayEl(document.getElementById('detail-panel'));
 
@@ -1135,7 +1756,11 @@
     });
   }
   document.getElementById('detail-contact').addEventListener('click', function(){ if (currentDetailItem) openChatFor(currentDetailItem); });
-  document.getElementById('detail-purchase').addEventListener('click', function(){ this.textContent = 'Added ✓'; this.disabled = true; });
+  document.getElementById('detail-purchase').addEventListener('click', function(){
+    if (!currentDetailItem) return;
+    if (this.dataset.mode === 'buy') openCheckout(currentDetailItem);
+    else openChatFor(currentDetailItem); // no price or payments off: a real conversation, not a fake cart
+  });
 
   /* ================= Chat (consumer + AI receptionist + handoff, §4) ================= */
   var currentChat = null; // { businessId, businessName, conversationId, visitorToken, handledBy }
@@ -1177,7 +1802,10 @@
   function removeTyping(){ var el = document.getElementById('chat-typing-bubble'); if (el) el.remove(); }
 
   function updateHandledByUI(handledBy){
-    currentChat.handledBy = handledBy;
+    // currentChat is null the first time the panel opens (resetChatUI runs
+    // before a chat exists). Without this guard that call threw, and the
+    // chat panel could never be opened at all on a fresh page load.
+    if (currentChat) currentChat.handledBy = handledBy;
     if (handledBy === 'ai'){ chatStatusPill.textContent = 'AI receptionist'; chatStatusPill.className = 'chat-pill ai'; }
     else if (handledBy === 'awaiting_human'){ chatStatusPill.textContent = 'A team member has been notified'; chatStatusPill.className = 'chat-pill waiting'; }
     else { chatStatusPill.textContent = 'Chatting with a team member'; chatStatusPill.className = 'chat-pill staff'; }
@@ -1196,7 +1824,7 @@
     updateIdentifyUI(false);
     document.getElementById('chat-redeem-form').classList.add('hidden');
     document.getElementById('chat-redeem-hint').className = 'demo-hint';
-    document.getElementById('chat-redeem-hint').textContent = 'Demo code: DEMO-1234 (works once)';
+    document.getElementById('chat-redeem-hint').textContent = 'Paid for an order? Paste your order code to reach a team member.';
   }
 
   function openChatFor(item){
@@ -1246,7 +1874,8 @@
           removeTyping();
           var all = await Backend.getConversation(currentChat.conversationId, currentChat.visitorToken);
           renderChatMessages(all.messages);
-        } catch (err){ removeTyping(); /* 409: no new visitor message to answer — fine, ignore */ }
+          if (reply && reply.handoff && reply.handoff.requested) updateHandledByUI('awaiting_human');
+        } catch (err){ removeTyping(); /* 409: a person has taken over or there is nothing new to answer — fine, ignore */ }
       }
     } catch (err){ console.warn('chat send failed', err); }
   });
@@ -1381,6 +2010,8 @@
 
   /* ================= Init ================= */
   resizeCanvas();
+  window.addEventListener('hashchange', handleHash);
+  handleHash();
   Backend.fetchSnapshot().then(function(items){
     for (var i = 0; i < items.length; i++) catalogById[items[i].id] = items[i];
     catalogList = items.slice();

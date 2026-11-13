@@ -66,6 +66,8 @@ interface CatalogMeta {
   icon?: string;
   category?: string;
   description?: string;
+  price?: number | null;
+  currency?: string | null;
   media?: { image?: string | null; video?: string | null };
 }
 
@@ -93,6 +95,8 @@ interface StreamItem {
   size: number;
   visibilityWeight: number;
   description: string;
+  price: number | null;
+  currency: string;
   media: { image: string | null; video: string | null };
 }
 
@@ -179,6 +183,8 @@ function normalizeForStream(rows: RawStreamRow[]): StreamItem[] {
       size,
       visibilityWeight,
       description: meta.description ?? '',
+      price: typeof meta.price === 'number' ? meta.price : null,
+      currency: meta.currency ?? 'GHS',
       media: {
         image: meta.media?.image ?? null,
         video: meta.media?.video ?? null,
@@ -216,10 +222,10 @@ export default async function productStreamRoutes(fastify: FastifyInstance) {
              SELECT counterparty_id, COUNT(DISTINCT order_id) AS order_count
              FROM order_items oi2
              JOIN orders o2 ON o2.id = oi2.order_id
-             WHERE o2.direction = 'sale' AND oi2.material_id = m.id
+             WHERE o2.direction = 'sale' AND o2.status <> 'pending_payment' AND oi2.material_id = m.id
              GROUP BY counterparty_id
            ) cust ON cust.counterparty_id = o.counterparty_id
-           WHERE o.direction = 'sale' AND oi.material_id = m.id
+           WHERE o.direction = 'sale' AND o.status <> 'pending_payment' AND oi.material_id = m.id
          ) stats ON true
          WHERE m.catalog_meta IS NOT NULL
          ORDER BY m.id ASC`,
